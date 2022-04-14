@@ -253,3 +253,4 @@ if __name__ == '__main__':
     cleanup(audio_file, announcement)
 
     logging.info('AUTOCUT FINISHED!')
+    input('Press Enter…')
