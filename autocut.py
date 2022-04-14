@@ -144,9 +144,11 @@ def find_input_file(dir):
 
 
 def convert_video_to_mp3(file):
-    outfile = tempfile.TemporaryFile(suffix='.mp3')
-    subprocess.run(['ffmpeg', '-i', file, '-f', 'mp3', outfile])
-    return outfile
+    outfile = tempfile.NamedTemporaryFile(suffix='.mp3')
+    outfilename = outfile.name
+    outfile.close()
+    subprocess.run(['ffmpeg', '-i', file, '-f', 'mp3', outfilename])
+    return outfilename
 
 
 def read_services(repo):
