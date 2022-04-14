@@ -136,7 +136,7 @@ def find_input_file(dir):
         return files[0]
     # Otherwise sort by name and take the last one (which if the names start with the data is
     # the newest one)
-    files = glob.glob(os.path.join(dir, '*'))
+    files = glob.glob(os.path.join(dir, '[0-9]*.*'))
     files.sort()
     if len(files) >= 1:
         return files[len(files) - 1]
