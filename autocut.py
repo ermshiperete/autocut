@@ -22,7 +22,7 @@ def secure_lookup(data, key1, key2=None, default=None):
     Return data[key1][key2] while dealing with data being None or key1 or key2 not existing
     """
     if not data:
-        return None
+        return default
     if key1 in data:
         if not key2:
             return data[key1]
@@ -84,10 +84,10 @@ def normalize_segments(audio, segments, introIndex):
 
 def get_info(services, date):
     service = secure_lookup(services, date)
-    title = secure_lookup(service, 'name', None, 'Gottesdienst')
+    title = secure_lookup(service, 'name', default='Gottesdienst')
     return { 'title': title,
-             'announce': secure_lookup(service, 'announce', None, title),
-             'artist': secure_lookup(service, 'artist', None, 'Rainer Heuschneider'),
+             'announce': secure_lookup(service, 'announce', default=title),
+             'artist': secure_lookup(service, 'artist', default='Rainer Heuschneider'),
              'album': 'Ev. Kirchengemeinde Niederdresselndorf',
              'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
              'year': '%04d' % date.year,
@@ -155,12 +155,13 @@ def read_services(repo):
     if not repo:
         return {}
     logging.info('Getting Gottesdienste metadata')
+    scriptDir = os.path.dirname(os.path.realpath(__file__))
     dir = 'Gottesdienste'
     if os.path.exists(dir):
-        subprocess.run(['git', 'pull', 'origin'], cwd=dir)
+        subprocess.run(['git', 'pull', 'origin'], cwd=os.path.join(scriptDir, dir))
     else:
-        subprocess.run(['git', 'clone', repo, dir])
-    yml_file = os.path.join(dir, 'Gottesdienst.yml')
+        subprocess.run(['git', 'clone', repo, dir], cwd=scriptDir)
+    yml_file = os.path.join(scriptDir, dir, 'Gottesdienst.yml')
     if not os.path.exists(yml_file):
         logging.warning("Can't find Gottesdienst.yml")
         return {}
@@ -185,7 +186,7 @@ def save_announcement_file(info):
     logging.info('Saving announcement file')
     filename = os.path.join(tempfile.gettempdir(), "Announce.txt")
     with open(filename, 'w') as f:
-        f.write('Guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['announce'], info['date'].day, months[info['date'].month], info['date'].year))
+        f.write('Hallo, guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['announce'], info['date'].day, months[info['date'].month], info['date'].year))
     return filename
 
 
