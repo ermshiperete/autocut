@@ -6,15 +6,18 @@
 
 import configparser
 import datetime
+import glob
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from pydub import AudioSegment, effects, silence
+import yaml
 
 
-def secure_lookup(data, key1, key2=None):
+def secure_lookup(data, key1, key2=None, default=None):
     """
     Return data[key1][key2] while dealing with data being None or key1 or key2 not existing
     """
@@ -25,11 +28,14 @@ def secure_lookup(data, key1, key2=None):
             return data[key1]
         if key2 in data[key1]:
             return data[key1][key2]
-    return None
+    return default
 
 
 def load_audio(file):
     logging.info('Loading %s', file)
+    if not os.path.exists(file):
+        logging.error('File %s not found', file)
+        exit(2)
     return AudioSegment.from_file(file)
 
 
@@ -38,15 +44,15 @@ def detect_segments(audio):
     return silence.detect_nonsilent(audio, min_silence_len=5000, silence_thresh=-50, seek_step=100)
 
 
-def get_index_of_intro_segment(segments):
-    logging.info('Finding intro segment')
+def get_index_of_intro_segment(audio, segments):
+    logging.info('Finding intro segment (in %d segments)', len(segments))
     i = -1
     for segment in segments:
         i = i + 1
-        logging.info('\tExamining segment %d', i)
+        logging.info('    Examining segment %d', i)
         filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
         with open(filename, "wb") as f:
-            myAudio[segment[0]:segment[1]].export(f, format="mp3")
+            audio[segment[0]:segment[1]].export(f, format="mp3")
         out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
                             filename], stdout=subprocess.PIPE, text=True)
         (line, _) = out.communicate()
@@ -64,7 +70,7 @@ def normalize_segments(audio, segments, introIndex):
     logging.info('Normalizing %d segments', len(segments) - introIndex - 1)
     resultAudio = None
     for j in range(introIndex + 1, len(segments)):
-        logging.info('\tProcessing segment %d', j)
+        logging.info('    Processing segment %d', j)
         normalized = effects.normalize(audio[segments[j][0]:segments[j][1]])
         if resultAudio is None:
             resultAudio = normalized
@@ -76,13 +82,25 @@ def normalize_segments(audio, segments, introIndex):
     return resultAudio
 
 
-def export_result(audio, outputdir):
+def get_info(services, date):
+    service = secure_lookup(services, date)
+    return { 'title': secure_lookup(service, 'name', None, 'Gottesdienst'),
+             'artist': secure_lookup(service, 'artist', None, 'Rainer Heuschneider'),
+             'album': 'Ev. Kirchengemeinde Niederdresselndorf',
+             'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
+             'year': '%04d' % date.year,
+             'isodate': '%04d-%02d-%02d' % (date.year, date.month, date.day),
+             'date': date
+    }
+
+
+def export_result(audio, outputdir, info):
     logging.info('Exporting result')
-    with open(os.path.join(outputdir, 'result.mp3'), 'wb') as f:
-        today = datetime.datetime.now()
-        trackno = '%04d%02d%02d' % (today.year, today.month, today.day)
-        metadata = {'title': 'Gottesdienst Niederdresselndorf', 'track': trackno,
-                    'year': today.year, 'genre': 'Gottesdienst'}  # 'artist': 'Song Artist',
+    filename = os.path.join(outputdir, ('%s_%s_%s.mp3' % (
+        info['isodate'], info['title'], info['album'])).replace(' ', '_'))
+    with open(filename, 'wb') as f:
+        metadata = {'title': info['title'], 'track': info['trackno'], 'artist': info['artist'],
+                    'album': info['album'], 'year': info['year'], 'genre': 'Gottesdienst'}
         audio.export(f, format='mp3', bitrate='128k', tags=metadata, parameters=[
                         '-minrate', '128k', '-maxrate', '128k'])
 
@@ -94,9 +112,69 @@ def read_config():
     [Paths]
     InputPath=%s
     OutputPath=%s
+    Services=
     """ % (tempdir, tempdir))
     config.read('autocut.config')
     return config
+
+
+def find_input_file(dir):
+    # First try if there is a file with the current date in name
+    today = datetime.datetime.now()
+    files = glob.glob(os.path.join(dir, '%04d-%02d-%02d*' % (today.year, today.month, today.day)))
+    files.sort()
+    if len(files) >= 1:
+        return files[0]
+    # Otherwise sort by name and take the last one (which if the names start with the data is
+    # the newest one)
+    files = glob.glob(os.path.join(dir, '*'))
+    files.sort()
+    if len(files) >= 1:
+        return files[len(files) - 1]
+    return ''
+
+
+def read_services(repo):
+    if not repo:
+        return {}
+    logging.info('Getting Gottesdienste metadata')
+    dir = 'Gottesdienste'
+    if os.path.exists(dir):
+        subprocess.run(['git', 'pull', 'origin'], cwd=dir)
+    else:
+        subprocess.run(['git', 'clone', repo, dir])
+    yml_file = os.path.join(dir, 'Gottesdienst.yml')
+    if not os.path.exists(yml_file):
+        logging.warning("Can't find Gottesdienst.yml")
+        return {}
+    with open(yml_file, 'r') as f:
+        yml = yaml.load(f, Loader=yaml.FullLoader)
+        return yml
+
+
+def extract_date_from_filename(filename):
+    match = re.search('^(\d+)-(\d+)-(\d+)', os.path.basename(filename))
+    if not match:
+        return datetime.date.today()
+    parts = match.groups()
+    if not parts or len(parts) < 3:
+        return datetime.date.today()
+    return datetime.date.fromisoformat('%s-%s-%s' % (parts[0], parts[1], parts[2]))
+
+
+def get_month(month):
+    return
+
+
+def save_announcement_file(info):
+    months = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+              'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+    logging.info('Saving announcement file')
+    filename = os.path.join(tempfile.gettempdir(), "Announce.txt")
+    with open(filename, 'w') as f:
+        f.write('Guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['title'], info['date'].day, months[info['date'].month], info['date'].year))
+    return filename
+
 
 if __name__ == '__main__':
     logging.basicConfig(
@@ -111,18 +189,23 @@ if __name__ == '__main__':
 
     config = read_config()
 
-    #myAudio = AudioSegment.from_file("/tmp/Godi.mp4", format="mp4")
-    myAudio = load_audio(os.path.join(config['Paths']['InputPath'], 'Godi.mp4'))
+    services = read_services(config['Paths']['Services'])
 
-    # segments = silence.detect_nonsilent(myAudio, min_silence_len=5000, silence_thresh=-50, seek_step=100)
+    audio_file = find_input_file(config['Paths']['InputPath'])
+    date = extract_date_from_filename(audio_file)
+    if not audio_file:
+        audio_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
+    myAudio = load_audio(audio_file)
+
     segments = detect_segments(myAudio)
 
-    introIndex = get_index_of_intro_segment(segments)
+    introIndex = get_index_of_intro_segment(myAudio, segments)
     if introIndex < 0:
-        logging.error("Can't find intro segment!")
         exit(1)
 
     resultAudio = normalize_segments(myAudio, segments, introIndex)
 
-    export_result(resultAudio, config['Paths']['OutputPath'])
+    info = get_info(services, date)
+    export_result(resultAudio, config['Paths']['OutputPath'], info)
+    save_announcement_file(info)
     logging.info('AUTOCUT FINISHED!')
