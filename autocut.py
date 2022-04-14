@@ -114,7 +114,7 @@ def read_config():
     OutputPath=%s
     Services=
     """ % (tempdir, tempdir))
-    config.read('autocut.config')
+    config.read(os.path.join(os.path.basename(os.path.realpath(__file__)), 'autocut.config'))
     return config
 
 
@@ -160,10 +160,6 @@ def extract_date_from_filename(filename):
     if not parts or len(parts) < 3:
         return datetime.date.today()
     return datetime.date.fromisoformat('%s-%s-%s' % (parts[0], parts[1], parts[2]))
-
-
-def get_month(month):
-    return
 
 
 def save_announcement_file(info):
