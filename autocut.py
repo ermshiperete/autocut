@@ -114,7 +114,7 @@ def read_config():
     OutputPath=%s
     Services=
     """ % (tempdir, tempdir))
-    config.read(os.path.join(os.path.basename(os.path.realpath(__file__)), 'autocut.config'))
+    config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autocut.config'))
     return config
 
 
