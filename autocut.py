@@ -143,6 +143,12 @@ def find_input_file(dir):
     return ''
 
 
+def convert_video_to_mp3(file):
+    outfile = os.path.join(tempfile.gettempdir(), 'intermediate.mp3')
+    subprocess.run(['ffmpeg', '-i', file, '-f', 'mp3', outfile])
+    return outfile
+
+
 def read_services(repo):
     if not repo:
         return {}
@@ -211,7 +217,8 @@ if __name__ == '__main__':
 
     services = read_services(config['Paths']['Services'])
 
-    audio_file = find_input_file(config['Paths']['InputPath'])
+    input_file = find_input_file(config['Paths']['InputPath'])
+    audio_file = convert_video_to_mp3(input_file)
     date = extract_date_from_filename(audio_file)
     if not audio_file:
         audio_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
