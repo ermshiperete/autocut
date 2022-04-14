@@ -7,7 +7,7 @@ it and then normalizes the rest of the recording.
 
 ```bash
 sudo apt-add-repository ppa:marin-m/songrec
-sudo apt install songrec
+sudo apt install songrec python3 python3-pip
 pip install pydub
 ```
 
