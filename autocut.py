@@ -144,7 +144,7 @@ def find_input_file(dir):
 
 
 def convert_video_to_mp3(file):
-    outfile = os.path.join(tempfile.gettempdir(), 'intermediate.mp3')
+    outfile = tempfile.TemporaryFile(suffix='.mp3')
     subprocess.run(['ffmpeg', '-i', file, '-f', 'mp3', outfile])
     return outfile
 
@@ -202,6 +202,12 @@ def upload_announcement(config, file):
     subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file, config['Upload']['Key'], config['Upload']['PhoneServer'])])
 
 
+def cleanup(intermediate, announcement):
+    logging.info('Cleanup')
+    os.remove(intermediate)
+    os.remove(announcement)
+
+
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
@@ -239,4 +245,7 @@ if __name__ == '__main__':
     upload_to_website(config, resultFile, info['year'])
     upload_to_phoneserver(config, resultFile)
     upload_announcement(config, announcement)
+
+    cleanup(audio_file, announcement)
+
     logging.info('AUTOCUT FINISHED!')
