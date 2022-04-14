@@ -2,3 +2,10 @@
 InputPath=/tmp
 OutputPath=/tmp
 Services=https://gist.github.com/1234567890deadbeef09876543210123.git
+
+[Upload]
+User=username
+Password=password
+Server=ftp.example.com
+PhoneServer=asterisk.example.com
+KEY=123456

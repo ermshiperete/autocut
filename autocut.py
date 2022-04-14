@@ -105,6 +105,7 @@ def export_result(audio, outputdir, info):
                     'album': info['album'], 'year': info['year'], 'genre': 'Gottesdienst'}
         audio.export(f, format='mp3', bitrate='128k', tags=metadata, parameters=[
                         '-minrate', '128k', '-maxrate', '128k'])
+    return filename
 
 
 def read_config():
@@ -115,6 +116,12 @@ def read_config():
     InputPath=%s
     OutputPath=%s
     Services=
+    [Upload]
+    User=
+    Password=
+    Server=
+    PhoneServer=
+    Key=
     """ % (tempdir, tempdir))
     config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autocut.config'))
     return config
@@ -174,6 +181,21 @@ def save_announcement_file(info):
     return filename
 
 
+def upload_to_website(config, file, year):
+    logging.info('Uploading to website')
+    subprocess.run(['ncftpput', '-u', config['Upload']['User'], '-p', config['Upload']['Password'], config['Upload']['Server'], '/Predigten/%s/' % year, '"%s"' % file])
+
+
+def upload_to_phoneserver(config, file):
+    logging.info('Uploading to phone server')
+    subprocess.run(['bash', '-c', os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file, config['Upload']['PhoneServer']])
+
+
+def upload_announcement(config, file):
+    logging.info('Uploading to announcement')
+    subprocess.run(['bash', '-c', os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file, config['Upload']['Key'], config['Upload']['PhoneServer']])
+
+
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
@@ -204,6 +226,10 @@ if __name__ == '__main__':
     resultAudio = normalize_segments(myAudio, segments, introIndex)
 
     info = get_info(services, date)
-    export_result(resultAudio, config['Paths']['OutputPath'], info)
-    save_announcement_file(info)
+    resultFile = export_result(resultAudio, config['Paths']['OutputPath'], info)
+    announcement = save_announcement_file(info)
+
+    upload_to_website(config, resultFile, info['year'])
+    upload_to_phoneserver(config, resultFile)
+    upload_announcement(config, announcement)
     logging.info('AUTOCUT FINISHED!')
