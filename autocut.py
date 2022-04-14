@@ -226,10 +226,11 @@ if __name__ == '__main__':
     services = read_services(config['Paths']['Services'])
 
     input_file = find_input_file(config['Paths']['InputPath'])
+    if not input_file:
+        input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
+
+    date = extract_date_from_filename(input_file)
     audio_file = convert_video_to_mp3(input_file)
-    date = extract_date_from_filename(audio_file)
-    if not audio_file:
-        audio_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
     myAudio = load_audio(audio_file)
 
     segments = detect_segments(myAudio)
