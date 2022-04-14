@@ -183,17 +183,17 @@ def save_announcement_file(info):
 
 def upload_to_website(config, file, year):
     logging.info('Uploading to website')
-    subprocess.run(['ncftpput', '-u', config['Upload']['User'], '-p', config['Upload']['Password'], config['Upload']['Server'], '/Predigten/%s/' % year, '"%s"' % file])
+    subprocess.run(['ncftpput', '-u', config['Upload']['User'], '-p', config['Upload']['Password'], config['Upload']['Server'], '/Predigten/%s/' % year, file])
 
 
 def upload_to_phoneserver(config, file):
     logging.info('Uploading to phone server')
-    subprocess.run(['bash', '-c', os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file, config['Upload']['PhoneServer']])
+    subprocess.run(['bash', '-c', '%s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file, config['Upload']['PhoneServer'])])
 
 
 def upload_announcement(config, file):
     logging.info('Uploading to announcement')
-    subprocess.run(['bash', '-c', os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file, config['Upload']['Key'], config['Upload']['PhoneServer']])
+    subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file, config['Upload']['Key'], config['Upload']['PhoneServer'])])
 
 
 if __name__ == '__main__':
