@@ -84,7 +84,9 @@ def normalize_segments(audio, segments, introIndex):
 
 def get_info(services, date):
     service = secure_lookup(services, date)
-    return { 'title': secure_lookup(service, 'name', None, 'Gottesdienst'),
+    title = secure_lookup(service, 'name', None, 'Gottesdienst')
+    return { 'title': title,
+             'announce': secure_lookup(service, 'announce', None, title),
              'artist': secure_lookup(service, 'artist', None, 'Rainer Heuschneider'),
              'album': 'Ev. Kirchengemeinde Niederdresselndorf',
              'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
@@ -168,7 +170,7 @@ def save_announcement_file(info):
     logging.info('Saving announcement file')
     filename = os.path.join(tempfile.gettempdir(), "Announce.txt")
     with open(filename, 'w') as f:
-        f.write('Guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['title'], info['date'].day, months[info['date'].month], info['date'].year))
+        f.write('Guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['announce'], info['date'].day, months[info['date'].month], info['date'].year))
     return filename
 
 
