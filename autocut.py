@@ -39,9 +39,9 @@ def load_audio(file):
     return AudioSegment.from_file(file)
 
 
-def detect_segments(audio):
+def detect_segments(audio, silence_len=5000, seek_step=100):
     logging.info('Detecting segments')
-    return silence.detect_nonsilent(audio, min_silence_len=5000, silence_thresh=-50, seek_step=100)
+    return silence.detect_nonsilent(audio, min_silence_len=silence_len, silence_thresh=-50, seek_step=seek_step)
 
 
 def get_index_of_intro_segment(audio, segments):
@@ -59,9 +59,24 @@ def get_index_of_intro_segment(audio, segments):
         data = json.loads(line)
 
         # Jaykar: Dior
-        if secure_lookup(data, 'track', 'subtitle') == 'Jaykar' and secure_lookup(data, 'track', 'title') == 'Dior':
+        intro_subtitle = 'Jaykar'
+        intro_title = 'Dior'
+        intro_length = 100000
+        if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
             logging.info('Found intro in segment %d', i)
+            if segment[1] - segment[0] > intro_length:
+                logging.info('Missed end of intro segment. Re-detecting with shorter silence.')
+                segment_audio = audio[segment[0]:segment[1]]
+                subsegments = detect_segments(segment_audio, 750, seek_step=50)
+                if subsegments[0][1] - subsegments[0][0] > intro_length:
+                    logging.info('Still missed end of intro segment. Hard cutting after known intro length.')
+                    segments.insert(i + 1, [segment[0] + intro_length, segment[1]])
+                    segment[1] = segment[0] + intro_length
+                else:
+                    segments.insert(i + 1, [segment[0] + subsegments[1][0], segment[1]])
+                    segment[1] = segment[0] + subsegments[0][1]
             return i
+
     logging.error("Can't find intro segment!")
     return -1
 
