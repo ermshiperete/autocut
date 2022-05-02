@@ -273,6 +273,7 @@ if __name__ == '__main__':
 
     introIndex = get_index_of_intro_segment(myAudio, segments)
     if introIndex < 0:
+        input('Press Enter…')
         exit(1)
 
     resultAudio = normalize_segments(myAudio, segments, introIndex)
