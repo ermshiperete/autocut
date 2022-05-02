@@ -40,7 +40,7 @@ def load_audio(file):
     return AudioSegment.from_file(file)
 
 
-def detect_segments(audio, silence_len=5000, seek_step=100):
+def detect_segments(audio, silence_len=1000, seek_step=100):
     logging.info('Detecting segments')
     return silence.detect_nonsilent(audio, min_silence_len=silence_len, silence_thresh=-50, seek_step=seek_step)
 
