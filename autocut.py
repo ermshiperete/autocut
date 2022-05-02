@@ -4,6 +4,7 @@
 # sudo apt-add-repository ppa:marin-m/songrec
 # sudo apt install songrec
 
+import argparse
 import configparser
 import datetime
 import glob
@@ -51,11 +52,16 @@ def get_index_of_intro_segment(audio, segments):
         i = i + 1
         logging.info('    Examining segment %d', i)
         filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
+        if debug:
+            filename = os.path.join(tempfile.gettempdir(), "segment%d.mp3" % i)
         with open(filename, "wb") as f:
             audio[segment[0]:segment[1]].export(f, format="mp3")
         out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
                             filename], stdout=subprocess.PIPE, text=True)
         (line, _) = out.communicate()
+        if debug:
+            with open(os.path.join(tempfile.gettempdir(), "songrec%d.json" % i), 'w') as fo:
+                fo.write(line)
         data = json.loads(line)
 
         # Jaykar: Dior
@@ -237,6 +243,17 @@ if __name__ == '__main__':
     )
     logging.info('STARTING AUTOCUT')
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action='store_true', help='debug')
+    parser.add_argument('--no-preconvert', action='store_true', help='don\'t do converison to mp3 as first step')
+    parser.add_argument('--no-upload', action='store_true', help='don\t upload to servers')
+
+    args = parser.parse_args()
+    if args.debug:
+        debug = True
+    else:
+        debug = False
+
     config = read_config()
 
     services = read_services(config['Paths']['Services'])
@@ -246,7 +263,10 @@ if __name__ == '__main__':
         input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
 
     date = extract_date_from_filename(input_file)
-    audio_file = convert_video_to_mp3(input_file)
+    if args.no_preconvert:
+        audio_file = input_file
+    else:
+        audio_file = convert_video_to_mp3(input_file)
     myAudio = load_audio(audio_file)
 
     segments = detect_segments(myAudio)
@@ -261,9 +281,10 @@ if __name__ == '__main__':
     resultFile = export_result(resultAudio, config['Paths']['OutputPath'], info)
     announcement = save_announcement_file(info)
 
-    upload_to_website(config, resultFile, info['year'])
-    upload_to_phoneserver(config, resultFile)
-    upload_announcement(config, announcement)
+    if not args.no_upload:
+        upload_to_website(config, resultFile, info['year'])
+        upload_to_phoneserver(config, resultFile)
+        upload_announcement(config, announcement)
 
     cleanup(audio_file, announcement)
 
