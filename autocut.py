@@ -218,12 +218,12 @@ def upload_to_website(config, file, year):
 
 def upload_to_phoneserver(config, file):
     logging.info('Uploading to phone server')
-    subprocess.run(['bash', '-c', '%s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file, config['Upload']['PhoneServer'])])
+    subprocess.run(['bash', '-c', '%s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file.replace('(', '\\(').replace(')', '\\)'), config['Upload']['PhoneServer'])])
 
 
 def upload_announcement(config, file):
     logging.info('Uploading to announcement')
-    subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file, config['Upload']['Key'], config['Upload']['PhoneServer'])])
+    subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file.replace('(', '\\(').replace(')', '\\)'), config['Upload']['Key'], config['Upload']['PhoneServer'])])
 
 
 def cleanup(intermediate, announcement):
