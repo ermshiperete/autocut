@@ -245,8 +245,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true', help='debug')
-    parser.add_argument('--no-preconvert', action='store_true', help='don\'t do converison to mp3 as first step')
+    parser.add_argument('--no-preconvert', action='store_true', help='don\'t do conversion to mp3 as first step')
     parser.add_argument('--no-upload', action='store_true', help='don\t upload to servers')
+    parser.add_argument('--no-intro-detection', action='store_true', help='don\'t try to detect intro. Instead use entire file.')
 
     args = parser.parse_args()
     if args.debug:
@@ -271,10 +272,13 @@ if __name__ == '__main__':
 
     segments = detect_segments(myAudio)
 
-    introIndex = get_index_of_intro_segment(myAudio, segments)
-    if introIndex < 0:
-        input('Press Enter…')
-        exit(1)
+    if args.no_intro_detection:
+        introIndex = 0
+    else:
+        introIndex = get_index_of_intro_segment(myAudio, segments)
+        if introIndex < 0:
+            input('Press Enter…')
+            exit(1)
 
     resultAudio = normalize_segments(myAudio, segments, introIndex)
 
