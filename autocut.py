@@ -154,7 +154,8 @@ def find_input_file(dir):
     files = glob.glob(os.path.join(dir, '%04d-%02d-%02d*' % (today.year, today.month, today.day)))
     files.sort()
     if len(files) >= 1:
-        return files[0]
+        # if there are multiple files with today's date, take the last one
+        return files[len(files) - 1]
     # Otherwise sort by name and take the last one (which if the names start with the data is
     # the newest one)
     files = glob.glob(os.path.join(dir, '[0-9]*.*'))
