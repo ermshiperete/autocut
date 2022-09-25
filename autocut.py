@@ -247,7 +247,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true', help='debug')
     parser.add_argument('--no-preconvert', action='store_true', help='don\'t do conversion to mp3 as first step')
-    parser.add_argument('--no-upload', action='store_true', help='don\t upload to servers')
+    parser.add_argument('--no-upload', action='store_true', help='don\'t upload to servers')
     parser.add_argument('--no-intro-detection', action='store_true', help='don\'t try to detect intro. Instead use entire file.')
 
     args = parser.parse_args()
