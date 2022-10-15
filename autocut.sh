@@ -1,5 +1,7 @@
 #!/bin/bash
 
-cd $(dirname $0)
+set -e
+
+cd "$(dirname "$0")"
 git pull origin main
-./autocut.py $@
+./autocut.py "$@"
