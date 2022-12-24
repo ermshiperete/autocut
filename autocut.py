@@ -274,7 +274,7 @@ if __name__ == '__main__':
     segments = detect_segments(myAudio)
 
     if args.no_intro_detection:
-        introIndex = 0
+        introIndex = -1
     else:
         introIndex = get_index_of_intro_segment(myAudio, segments)
         if introIndex < 0:
