@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 from pydub import AudioSegment, effects, silence
 import yaml
+from inaSpeechSegmenter import Segmenter
 
 
 def secure_lookup(data, key1, key2=None, default=None):
@@ -43,6 +44,13 @@ def load_audio(file):
 def detect_segments(audio, silence_len=1000, seek_step=100):
     logging.info('Detecting segments')
     return silence.detect_nonsilent(audio, min_silence_len=silence_len, silence_thresh=-50, seek_step=seek_step)
+
+
+def detect_detailed_segments(audio_file, startMilliSeconds):
+    logging.info('Detecting detailed segments')
+    segmenter = Segmenter()
+    segmentation = segmenter(audio_file, start_sec=startMilliSeconds / 1000)
+    return segmentation
 
 
 def get_index_of_intro_segment(audio, segments):
@@ -87,19 +95,39 @@ def get_index_of_intro_segment(audio, segments):
     return -1
 
 
-def normalize_segments(audio, segments, introIndex):
-    logging.info('Normalizing %d segments', len(segments) - introIndex - 1)
-    resultAudio = None
-    for j in range(introIndex + 1, len(segments)):
-        logging.info('    Processing segment %d', j)
-        normalized = effects.normalize(audio[segments[j][0]:segments[j][1]])
-        if resultAudio is None:
-            resultAudio = normalized
-        else:
-            resultAudio = resultAudio + normalized
+def _add_audio(existing, new):
+    if existing is None:
+        return new
+    return existing + new
 
-        if j + 1 < len(segments):
-            resultAudio = resultAudio + audio[segments[j][1]:segments[j+1][0]]
+def normalize_segments(audio, segments):
+    logging.info('Normalizing %d segments', len(segments))
+    resultAudio = None
+    i = -1
+    while i < len(segments) - 1:
+        i += 1
+        (kind, start, stop) = segments[i]
+        start = start * 1000
+        stop = stop * 1000
+        if kind == 'noEnergy' or kind == 'noise':
+            resultAudio = _add_audio(resultAudio, audio[start:stop])
+            continue
+        j = i
+        for j in range(i+1, len(segments)):
+            (nextkind, _, _) = segments[j]
+            if nextkind == 'noEnergy' or nextkind == 'noise':
+                continue
+            if nextkind != kind:
+                break
+        (nextkind, nextstart, nextstop) = segments[j - 1]
+        nextstart = nextstart * 1000
+        nextstop = nextstop * 1000
+        logging.info('    Normalizing segments %d-%d (%s, %ds-%ds, duration: %ds)',
+                    i, j - 1, kind, start / 1000, nextstop/ 1000, (stop - start) / 1000)
+        audioseg = audio[start:nextstop]
+        i = j - 1
+        normalized = effects.normalize(audioseg)
+        resultAudio = _add_audio(resultAudio, normalized)
     return resultAudio
 
 
@@ -271,7 +299,7 @@ if __name__ == '__main__':
         audio_file = convert_video_to_mp3(input_file)
     myAudio = load_audio(audio_file)
 
-    segments = detect_segments(myAudio)
+    segments = detect_segments(myAudio[0:len(myAudio)/2])
 
     if args.no_intro_detection:
         introIndex = -1
@@ -280,8 +308,9 @@ if __name__ == '__main__':
         if introIndex < 0:
             input('Press Enter…')
             exit(1)
+        segments = detect_detailed_segments(audio_file, segments[introIndex][1])
 
-    resultAudio = normalize_segments(myAudio, segments, introIndex)
+    resultAudio = normalize_segments(myAudio, segments)
 
     info = get_info(services, date)
     resultFile = export_result(resultAudio, config['Paths']['OutputPath'], info)
