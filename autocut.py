@@ -49,8 +49,7 @@ def detect_segments(audio, silence_len=1000, seek_step=100):
 def detect_detailed_segments(audio_file, startMilliSeconds):
     logging.info('Detecting detailed segments')
     segmenter = Segmenter()
-    segmentation = segmenter(audio_file, start_sec=startMilliSeconds / 1000)
-    return segmentation
+    return segmenter(audio_file, start_sec=startMilliSeconds / 1000)
 
 
 def get_index_of_intro_segment(audio, segments):
@@ -75,9 +74,9 @@ def get_index_of_intro_segment(audio, segments):
         # Jaykar: Dior
         intro_subtitle = 'Jaykar'
         intro_title = 'Dior'
-        intro_length = 100000
         if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
             logging.info('Found intro in segment %d', i)
+            intro_length = 100000
             if segment[1] - segment[0] > intro_length:
                 logging.info('Missed end of intro segment. Re-detecting with shorter silence.')
                 segment_audio = audio[segment[0]:segment[1]]
@@ -96,9 +95,7 @@ def get_index_of_intro_segment(audio, segments):
 
 
 def _add_audio(existing, new):
-    if existing is None:
-        return new
-    return existing + new
+    return existing + new if existing is not None else new
 
 def normalize_segments(audio, segments):
     logging.info('Normalizing %d segments', len(segments))
@@ -109,13 +106,13 @@ def normalize_segments(audio, segments):
         (kind, start, stop) = segments[i]
         start = start * 1000
         stop = stop * 1000
-        if kind == 'noEnergy' or kind == 'noise':
+        if kind in ['noEnergy', 'noise']:
             resultAudio = _add_audio(resultAudio, audio[start:stop])
             continue
         j = i
         for j in range(i+1, len(segments)):
             (nextkind, _, _) = segments[j]
-            if nextkind == 'noEnergy' or nextkind == 'noise':
+            if nextkind in ['noEnergy', 'noise']:
                 continue
             if nextkind != kind:
                 break
@@ -147,8 +144,12 @@ def get_info(services, date):
 
 def export_result(audio, outputdir, info):
     logging.info('Exporting result')
-    filename = os.path.join(outputdir, ('%s_%s_%s.mp3' % (
-        info['isodate'], info['title'], info['album'])).replace(' ', '_'))
+    filename = os.path.join(
+        outputdir,
+        f"{info['isodate']}_{info['title']}_{info['album']}.mp3".replace(
+            ' ', '_'
+        ),
+    )
     with open(filename, 'wb') as f:
         metadata = {'title': info['title'], 'track': info['trackno'], 'artist': info['artist'],
                     'album': info['album'], 'year': info['year'], 'genre': 'Gottesdienst'}
@@ -181,16 +182,14 @@ def find_input_file(dir):
     today = datetime.datetime.now()
     files = glob.glob(os.path.join(dir, '%04d-%02d-%02d*' % (today.year, today.month, today.day)))
     files.sort()
-    if len(files) >= 1:
+    if files:
         # if there are multiple files with today's date, take the last one
-        return files[len(files) - 1]
+        return files[-1]
     # Otherwise sort by name and take the last one (which if the names start with the data is
     # the newest one)
     files = glob.glob(os.path.join(dir, '[0-9]*.*'))
     files.sort()
-    if len(files) >= 1:
-        return files[len(files) - 1]
-    return ''
+    return files[-1] if files else ''
 
 
 def convert_video_to_mp3(file):
@@ -206,18 +205,17 @@ def read_services(repo):
         return {}
     logging.info('Getting Gottesdienste metadata')
     scriptDir = os.path.dirname(os.path.realpath(__file__))
-    dir = 'Gottesdienste'
-    if os.path.exists(dir):
-        subprocess.run(['git', 'pull', 'origin'], cwd=os.path.join(scriptDir, dir))
+    inputDir = 'Gottesdienste'
+    if os.path.exists(inputDir):
+        subprocess.run(['git', 'pull', 'origin'], cwd=os.path.join(scriptDir, inputDir))
     else:
-        subprocess.run(['git', 'clone', repo, dir], cwd=scriptDir)
-    yml_file = os.path.join(scriptDir, dir, 'Gottesdienst.yml')
+        subprocess.run(['git', 'clone', repo, inputDir], cwd=scriptDir)
+    yml_file = os.path.join(scriptDir, inputDir, 'Gottesdienst.yml')
     if not os.path.exists(yml_file):
         logging.warning("Can't find Gottesdienst.yml")
         return {}
     with open(yml_file, 'r') as f:
-        yml = yaml.load(f, Loader=yaml.FullLoader)
-        return yml
+        return yaml.load(f, Loader=yaml.FullLoader)
 
 
 def extract_date_from_filename(filename):
@@ -227,7 +225,7 @@ def extract_date_from_filename(filename):
     parts = match.groups()
     if not parts or len(parts) < 3:
         return datetime.date.today()
-    return datetime.date.fromisoformat('%s-%s-%s' % (parts[0], parts[1], parts[2]))
+    return datetime.date.fromisoformat(f'{parts[0]}-{parts[1]}-{parts[2]}')
 
 
 def save_announcement_file(info):
@@ -242,7 +240,18 @@ def save_announcement_file(info):
 
 def upload_to_website(config, file, year):
     logging.info('Uploading to website')
-    subprocess.run(['ncftpput', '-u', config['Upload']['User'], '-p', config['Upload']['Password'], config['Upload']['Server'], '/Predigten/%s/' % year, file])
+    subprocess.run(
+        [
+            'ncftpput',
+            '-u',
+            config['Upload']['User'],
+            '-p',
+            config['Upload']['Password'],
+            config['Upload']['Server'],
+            f'/Predigten/{year}/',
+            file,
+        ]
+    )
 
 
 def upload_to_phoneserver(config, file):
@@ -279,11 +288,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-intro-detection', action='store_true', help='don\'t try to detect intro. Instead use entire file.')
 
     args = parser.parse_args()
-    if args.debug:
-        debug = True
-    else:
-        debug = False
-
+    debug = bool(args.debug)
     config = read_config()
 
     services = read_services(config['Paths']['Services'])
@@ -299,7 +304,7 @@ if __name__ == '__main__':
         audio_file = convert_video_to_mp3(input_file)
     myAudio = load_audio(audio_file)
 
-    segments = detect_segments(myAudio[0:len(myAudio)/2])
+    segments = detect_segments(myAudio[:len(myAudio)/2])
 
     if args.no_intro_detection:
         introIndex = -1
