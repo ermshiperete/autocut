@@ -116,6 +116,8 @@ def normalize_segments(audio, segments):
                 continue
             if nextkind != kind:
                 break
+        if j + 1 >= len(segments):
+            break
         (nextkind, nextstart, nextstop) = segments[j - 1]
         nextstart = nextstart * 1000
         nextstop = nextstop * 1000
