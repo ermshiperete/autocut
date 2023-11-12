@@ -309,13 +309,14 @@ if __name__ == '__main__':
     segments = detect_segments(myAudio[:len(myAudio)/2])
 
     if args.no_intro_detection:
-        introIndex = -1
+        introIndex = 0
     else:
         introIndex = get_index_of_intro_segment(myAudio, segments)
         if introIndex < 0:
             input('Press Enter…')
             exit(1)
-        segments = detect_detailed_segments(audio_file, segments[introIndex][1])
+
+    segments = detect_detailed_segments(audio_file, segments[introIndex][1])
 
     resultAudio = normalize_segments(myAudio, segments)
 
