@@ -245,10 +245,9 @@ def upload_to_website(config, file, year):
     subprocess.run(
         [
             'ncftpput',
-            '-u',
-            config['Upload']['User'],
-            '-p',
-            config['Upload']['Password'],
+            '-m', # Create remote directory before copying
+            '-u', config['Upload']['User'],
+            '-p', config['Upload']['Password'],
             config['Upload']['Server'],
             f'/Predigten/{year}/',
             file,
