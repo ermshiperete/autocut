@@ -14,9 +14,7 @@ import os
 import re
 import subprocess
 import tempfile
-from pydub import AudioSegment, effects, silence
 import yaml
-from inaSpeechSegmenter import Segmenter
 
 
 def secure_lookup(data, key1, key2=None, default=None):
@@ -291,6 +289,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     debug = bool(args.debug)
     config = read_config()
+
+    from pydub import AudioSegment, effects, silence
+    from inaSpeechSegmenter import Segmenter
 
     services = read_services(config['Paths']['Services'])
 
