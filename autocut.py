@@ -312,6 +312,9 @@ if __name__ == '__main__':
     else:
         introIndex = get_index_of_intro_segment(myAudio, segments)
         if introIndex < 0:
+            if not args.no_upload:
+                # If we can't find intro we upload the full temp file to the website
+                upload_to_website(config, audio_file, info['year'])
             input('Press Enter…')
             exit(1)
 
