@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import tempfile
+from time import sleep, time_ns
 import yaml
 
 
@@ -41,7 +42,8 @@ def load_audio(file):
 
 def detect_segments(audio, silence_len=1000, seek_step=100):
     logging.info('Detecting segments')
-    return silence.detect_nonsilent(audio, min_silence_len=silence_len, silence_thresh=-50, seek_step=seek_step)
+    return silence.detect_nonsilent(audio, min_silence_len=silence_len,
+                                    silence_thresh=-50, seek_step=seek_step)
 
 
 def detect_detailed_segments(audio_file, startMilliSeconds):
@@ -52,41 +54,62 @@ def detect_detailed_segments(audio_file, startMilliSeconds):
 
 def get_index_of_intro_segment(audio, segments):
     logging.info('Finding intro segment (in %d segments)', len(segments))
-    i = -1
-    for segment in segments:
-        i = i + 1
-        logging.info('    Examining segment %d', i)
-        filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
-        if debug:
-            filename = os.path.join(tempfile.gettempdir(), "segment%d.mp3" % i)
-        with open(filename, "wb") as f:
-            audio[segment[0]:segment[1]].export(f, format="mp3")
-        out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
-                            filename], stdout=subprocess.PIPE, text=True)
-        (line, _) = out.communicate()
-        if debug:
-            with open(os.path.join(tempfile.gettempdir(), "songrec%d.json" % i), 'w') as fo:
-                fo.write(line)
-        data = json.loads(line)
+    try:
+        i = -1
+        timestamp_ns = 0
+        retry_ns = 0
+        for segment in segments:
+            i = i + 1
+            logging.info('    Examining segment %d', i)
+            filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
+            if debug:
+                filename = os.path.join(
+                    tempfile.gettempdir(), "segment%d.mp3" % i)
+            with open(filename, "wb") as f:
+                audio[segment[0]:segment[1]].export(f, format="mp3")
+            time_now_ns = time_ns()
+            if time_now_ns < timestamp_ns + retry_ns:
+                # Make sure that we don't try before the retry_ns that
+                # the previous call to songrec returned from shazam
+                to_wait_s = (timestamp_ns + retry_ns - time_now_ns) / 1000000000
+                logging.info('Waiting %f s', to_wait_s)
+                sleep(to_wait_s)
+            out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
+                                    filename], stdout=subprocess.PIPE, text=True)
+            timestamp_ns = time_ns()
+            (line, _) = out.communicate()
+            if not line:
+                logging.warning('No output from songrec for segment %d', i)
+                continue
+            if debug:
+                with open(os.path.join(tempfile.gettempdir(), "songrec%d.json" % i), 'w') as fo:
+                    fo.write(line)
+            data = json.loads(line)
 
-        # Jaykar: Dior
-        intro_subtitle = 'Jaykar'
-        intro_title = 'Dior'
-        if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
-            logging.info('Found intro in segment %d', i)
-            intro_length = 100000
-            if segment[1] - segment[0] > intro_length:
-                logging.info('Missed end of intro segment. Re-detecting with shorter silence.')
-                segment_audio = audio[segment[0]:segment[1]]
-                subsegments = detect_segments(segment_audio, 750, seek_step=50)
-                if subsegments[0][1] - subsegments[0][0] > intro_length:
-                    logging.info('Still missed end of intro segment. Hard cutting after known intro length.')
-                    segments.insert(i + 1, [segment[0] + intro_length, segment[1]])
-                    segment[1] = segment[0] + intro_length
-                else:
-                    segments.insert(i + 1, [segment[0] + subsegments[1][0], segment[1]])
-                    segment[1] = segment[0] + subsegments[0][1]
-            return i
+            # Jaykar: Dior
+            intro_subtitle = 'Jaykar'
+            intro_title = 'Dior'
+            if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
+                logging.info('Found intro in segment %d', i)
+                intro_length = 100000
+                if segment[1] - segment[0] > intro_length:
+                    logging.info('Missed end of intro segment. Re-detecting with shorter silence.')
+                    segment_audio = audio[segment[0]:segment[1]]
+                    subsegments = detect_segments(segment_audio, 750,
+                                                  seek_step=50)
+                    if subsegments[0][1] - subsegments[0][0] > intro_length:
+                        logging.info('Still missed end of intro segment. Hard cutting after known intro length.')
+                        segments.insert(i + 1, [segment[0] + intro_length, segment[1]])
+                        segment[1] = segment[0] + intro_length
+                    else:
+                        segments.insert(i + 1, [segment[0] + subsegments[1][0], segment[1]])
+                        segment[1] = segment[0] + subsegments[0][1]
+                return i
+            retry_ms = secure_lookup(data, 'retryms')
+            if retry_ms:
+                retry_ns = retry_ms * 1000000
+    except Exception as e:
+        logging.warning('Got exception trying to find intro segment: %s', e)
 
     logging.error("Can't find intro segment!")
     return -1
@@ -94,6 +117,7 @@ def get_index_of_intro_segment(audio, segments):
 
 def _add_audio(existing, new):
     return existing + new if existing is not None else new
+
 
 def normalize_segments(audio, segments):
     logging.info('Normalizing %d segments', len(segments))
@@ -308,6 +332,7 @@ if __name__ == '__main__':
 
     segments = detect_segments(myAudio[:len(myAudio)/2])
 
+    info = get_info(services, date)
     if args.no_intro_detection:
         introIndex = 0
     else:
@@ -323,7 +348,6 @@ if __name__ == '__main__':
 
     resultAudio = normalize_segments(myAudio, segments)
 
-    info = get_info(services, date)
     resultFile = export_result(resultAudio, config['Paths']['OutputPath'], info)
     announcement = save_announcement_file(info)
 
