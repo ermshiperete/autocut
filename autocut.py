@@ -72,7 +72,7 @@ def get_index_of_intro_segment(audio, segments):
                 # Make sure that we don't try before the retry_ns that
                 # the previous call to songrec returned from shazam
                 to_wait_s = (timestamp_ns + retry_ns - time_now_ns) / 1000000000
-                logging.info('Waiting %f s', to_wait_s)
+                logging.info('        Waiting %f s', to_wait_s)
                 sleep(to_wait_s)
             out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
                                     filename], stdout=subprocess.PIPE, text=True)
