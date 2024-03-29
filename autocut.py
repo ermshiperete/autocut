@@ -244,12 +244,18 @@ def read_services(repo):
 
 def extract_date_from_filename(filename):
     match = re.search('^(\d+)-(\d+)-(\d+)', os.path.basename(filename))
-    if not match:
-        return datetime.date.today()
-    parts = match.groups()
-    if not parts or len(parts) < 3:
-        return datetime.date.today()
-    return datetime.date.fromisoformat(f'{parts[0]}-{parts[1]}-{parts[2]}')
+    if match:
+        parts = match.groups()
+        if not parts or len(parts) < 3:
+            return datetime.date.today()
+        return datetime.date.fromisoformat(f'{parts[0]}-{parts[1]}-{parts[2]}')
+    match = re.search('^(\d+).(\d+).(\d+)', os.path.basename(filename))
+    if match:
+        parts = match.groups()
+        if not parts or len(parts) < 3:
+            return datetime.date.today()
+        return datetime.date.fromisoformat(f'{parts[2]}-{parts[1]}-{parts[0]}')
+    return datetime.date.today()
 
 
 def save_announcement_file(info):
