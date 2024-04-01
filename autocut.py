@@ -18,9 +18,21 @@ from time import sleep, time_ns
 import yaml
 
 
+intro_length = 100000
+
+
+def convert_milliseconds_to_readable(millseconds):
+    seconds = (millseconds/1000) % 60
+    minutes = int((millseconds/(1000*60)) % 60)
+    hours = int((millseconds/(1000*60*60)) % 24)
+
+    return f'{hours:02}:{minutes:02}:{seconds:04.1f}'
+
+
 def secure_lookup(data, key1, key2=None, default=None):
     """
-    Return data[key1][key2] while dealing with data being None or key1 or key2 not existing
+    Return data[key1][key2] while dealing with data being None or key1
+    or key2 not existing
     """
     if not data:
         return default
@@ -52,67 +64,165 @@ def detect_detailed_segments(audio_file, startMilliSeconds):
     return segmenter(audio_file, start_sec=startMilliSeconds / 1000)
 
 
-def get_index_of_intro_segment(audio, segments):
+def call_songrec(filename, attempt):
+    max_attempts = 3
+    if attempt > max_attempts:
+        # No success in 3 attempts - give up
+        logging.info(f'        No success in {max_attempts} attempts - giving up')
+        return ''
+    if attempt > 0:
+        # Waiting for 25s seems to work
+        logging.info(f'        Retry again in 25 s ({attempt}. attempt)')
+        sleep(25)
+
+    out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
+                            filename], stdout=subprocess.PIPE, text=True)
+    (line, _) = out.communicate()
+    if not line or out.returncode != 0:
+        if out.returncode != 0:
+            return call_songrec(filename, attempt + 1)
+        return ''
+    return line
+
+
+def check_segment_for_intro(audio, start_ms, end_ms, timestamp_ns,
+                            retry_ns, debug_suffix):
+    filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
+    if debug:
+        filename = os.path.join(
+            tempfile.gettempdir(), f'segment{debug_suffix}.mp3')
+    with open(filename, "wb") as f:
+        audio[start_ms:end_ms].export(f, format="mp3")
+    time_now_ns = time_ns()
+    if time_now_ns < timestamp_ns + retry_ns:
+        # Make sure that we don't try before the retry_ns that
+        # the previous call to songrec returned from shazam
+        to_wait_s = (timestamp_ns + retry_ns - time_now_ns) / 1000000000
+        logging.info('        Waiting %f s', to_wait_s)
+        sleep(to_wait_s)
+    line = call_songrec(filename, 0)
+    if not line:
+        logging.warning(f'No output from songrec for segment {debug_suffix}')
+        return (False, end_ms, timestamp_ns, retry_ns)
+    if debug:
+        with open(os.path.join(tempfile.gettempdir(),
+                               f'songrec{debug_suffix}.json'), 'w') as fo:
+            fo.write(line)
+    data = json.loads(line)
+
+    # Jaykar: Dior
+    intro_subtitle = 'Jaykar'
+    intro_title = 'Dior'
+    if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
+        logging.info(f'Found intro in segment {debug_suffix}')
+        if end_ms - start_ms > intro_length:
+            logging.info('Missed end of intro segment. Re-detecting with '
+                         'shorter silence.')
+            segment_audio = audio[start_ms:end_ms]
+            subsegments = detect_segments(segment_audio, 750,
+                                          seek_step=50)
+            if subsegments[0][1] - subsegments[0][0] > intro_length:
+                logging.info('Still missed end of intro segment. Hard '
+                             'cutting after known intro length.')
+                end_ms = start_ms + intro_length
+            else:
+                end_ms = start_ms + subsegments[0][1]
+        return (True, end_ms, timestamp_ns, retry_ns)
+    retry_ms = secure_lookup(data, 'retryms')
+    if retry_ms:
+        retry_ns = retry_ms * 1000000
+    return (False, end_ms, timestamp_ns, retry_ns)
+
+
+def get_end_of_intro_segment(audio, segments):
     logging.info('Finding intro segment (in %d segments)', len(segments))
     try:
         i = -1
         timestamp_ns = 0
         retry_ns = 0
         for segment in segments:
+            if args.end_intro and segment[0] > int(args.end_intro) * 60 * 1000:
+                logging.info('    Intro segment not found in '
+                             f'{args.end_intro} minutes; skipping rest')
+                return -1
             i = i + 1
-            logging.info('    Examining segment %d', i)
-            filename = os.path.join(tempfile.gettempdir(), "segment.mp3")
-            if debug:
-                filename = os.path.join(
-                    tempfile.gettempdir(), "segment%d.mp3" % i)
-            with open(filename, "wb") as f:
-                audio[segment[0]:segment[1]].export(f, format="mp3")
-            time_now_ns = time_ns()
-            if time_now_ns < timestamp_ns + retry_ns:
-                # Make sure that we don't try before the retry_ns that
-                # the previous call to songrec returned from shazam
-                to_wait_s = (timestamp_ns + retry_ns - time_now_ns) / 1000000000
-                logging.info('        Waiting %f s', to_wait_s)
-                sleep(to_wait_s)
-            out = subprocess.Popen(['songrec', 'audio-file-to-recognized-song',
-                                    filename], stdout=subprocess.PIPE, text=True)
-            timestamp_ns = time_ns()
-            (line, _) = out.communicate()
-            if not line:
-                logging.warning('No output from songrec for segment %d', i)
-                continue
-            if debug:
-                with open(os.path.join(tempfile.gettempdir(), "songrec%d.json" % i), 'w') as fo:
-                    fo.write(line)
-            data = json.loads(line)
+            logging.info(
+                f'    Examining segment {i} ('
+                f'{convert_milliseconds_to_readable(segment[0])} - '
+                f'{convert_milliseconds_to_readable(segment[1])})')
 
-            # Jaykar: Dior
-            intro_subtitle = 'Jaykar'
-            intro_title = 'Dior'
-            if secure_lookup(data, 'track', 'subtitle') == intro_subtitle and secure_lookup(data, 'track', 'title') == intro_title:
-                logging.info('Found intro in segment %d', i)
-                intro_length = 100000
-                if segment[1] - segment[0] > intro_length:
-                    logging.info('Missed end of intro segment. Re-detecting with shorter silence.')
-                    segment_audio = audio[segment[0]:segment[1]]
-                    subsegments = detect_segments(segment_audio, 750,
-                                                  seek_step=50)
-                    if subsegments[0][1] - subsegments[0][0] > intro_length:
-                        logging.info('Still missed end of intro segment. Hard cutting after known intro length.')
-                        segments.insert(i + 1, [segment[0] + intro_length, segment[1]])
-                        segment[1] = segment[0] + intro_length
-                    else:
-                        segments.insert(i + 1, [segment[0] + subsegments[1][0], segment[1]])
-                        segment[1] = segment[0] + subsegments[0][1]
-                return i
-            retry_ms = secure_lookup(data, 'retryms')
-            if retry_ms:
-                retry_ns = retry_ms * 1000000
+            (found, end_ms, timestamp_ns, retry_ns) = check_segment_for_intro(audio, segment[0], segment[1], timestamp_ns, retry_ns, i)
+            if not found:
+                continue
+            return end_ms
     except Exception as e:
         logging.warning('Got exception trying to find intro segment: %s', e)
 
     logging.error("Can't find intro segment!")
     return -1
+
+
+def get_end_of_intro_segment_in_slots(audio, segments):
+    slot_len = 20000  # 20s
+    logging.info('Finding intro segment in slots (in %d segments)',
+                 len(segments))
+    try:
+        i = -1
+        timestamp_ns = 0
+        retry_ns = 0
+        found = False
+        for segment in segments:
+            if args.end_intro and segment[0] > int(args.end_intro) * 60 * 1000:
+                logging.info(
+                    f'    Intro segment not found in {args.end_intro} '
+                    'minutes; skipping rest')
+                return -1
+            i = i + 1
+            for j in range(segment[0], segment[1], slot_len):
+                logging.info(
+                    f'    Examining {int(slot_len / 1000)}s slot starting at '
+                    f'{convert_milliseconds_to_readable(j)} in segment {i}')
+
+                (found, end_ms, timestamp_ns, retry_ns) = check_segment_for_intro(
+                    audio, j, j + slot_len, timestamp_ns, retry_ns, f'{i}-{j}')
+                if not found:
+                    continue
+                # Now we know a segment that contains the intro, but we still
+                # don't know the end of the intro. Try and find that now.
+                logging.info('Found intro segment. Now looking for end of intro.')
+                segment_end = j + slot_len
+                segment_audio = audio[segment_end:segment_end + intro_length]
+                subsegments = detect_segments(segment_audio, 250)
+                end_ms = end_ms + subsegments[0][1]
+                logging.info(f'    Calculated end of intro at {convert_milliseconds_to_readable(end_ms)}')
+                return end_ms
+    except Exception as e:
+        logging.warning('Got exception trying to find intro segment: %s', e)
+
+    logging.error("Can't find intro segment!")
+    return -1
+
+
+def find_start_after_intro(audio, silence_len=1000):
+    introSegments = detect_segments(audio[:len(audio)/2], silence_len)
+
+    if args.no_intro_detection:
+        end_of_intro_ms = 0
+        return 0
+    end_of_intro_ms = get_end_of_intro_segment(audio, introSegments)
+    if end_of_intro_ms >= 0:
+        return end_of_intro_ms
+    # We didn't find an intro segment in the regular segments. Now try
+    # again with 20s long segments
+    end_of_intro_ms = get_end_of_intro_segment_in_slots(
+        audio, introSegments)
+    if end_of_intro_ms >= 0:
+        return end_of_intro_ms
+    if not args.no_upload:
+        # If we can't find intro we upload the full temp file to the website
+        upload_to_website(config, audio_file, info['year'])
+    input('Press Enter…')
+    exit(1)
 
 
 def _add_audio(existing, new):
@@ -138,13 +248,18 @@ def normalize_segments(audio, segments):
                 continue
             if nextkind != kind:
                 break
-        if j + 1 >= len(segments):
-            break
-        (nextkind, nextstart, nextstop) = segments[j - 1]
+        if j >= len(segments) - 1:
+            # last segment
+            (nextkind, nextstart, nextstop) = segments[j]
+        else:
+            (nextkind, nextstart, nextstop) = segments[j - 1]
         nextstart = nextstart * 1000
         nextstop = nextstop * 1000
-        logging.info('    Normalizing segments %d-%d (%s, %ds-%ds, duration: %ds)',
-                    i, j - 1, kind, start / 1000, nextstop/ 1000, (stop - start) / 1000)
+        logging.info('    Normalizing segments %d-%d (%s, %s-%s, '
+                     'duration: %ds)', i, j - 1, kind,
+                     convert_milliseconds_to_readable(start),
+                     convert_milliseconds_to_readable(nextstop),
+                     (nextstop - start) / 1000)
         audioseg = audio[start:nextstop]
         i = j - 1
         normalized = effects.normalize(audioseg)
@@ -155,15 +270,16 @@ def normalize_segments(audio, segments):
 def get_info(services, date):
     service = secure_lookup(services, date)
     title = secure_lookup(service, 'name', default='Gottesdienst')
-    return { 'title': title,
-             'announce': secure_lookup(service, 'announce', default=title),
-             'artist': secure_lookup(service, 'artist', default='Rainer Heuschneider'),
-             'album': 'Ev. Kirchengemeinde Niederdresselndorf',
-             'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
-             'year': '%04d' % date.year,
-             'isodate': '%04d-%02d-%02d' % (date.year, date.month, date.day),
-             'date': date
-    }
+    return {'title': title,
+            'announce': secure_lookup(service, 'announce', default=title),
+            'artist': secure_lookup(service, 'artist',
+                                    default='Rainer Heuschneider'),
+            'album': 'Ev. Kirchengemeinde Niederdresselndorf',
+            'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
+            'year': '%04d' % date.year,
+            'isodate': '%04d-%02d-%02d' % (date.year, date.month, date.day),
+            'date': date
+            }
 
 
 def export_result(audio, outputdir, info):
@@ -175,10 +291,12 @@ def export_result(audio, outputdir, info):
         ),
     )
     with open(filename, 'wb') as f:
-        metadata = {'title': info['title'], 'track': info['trackno'], 'artist': info['artist'],
-                    'album': info['album'], 'year': info['year'], 'genre': 'Gottesdienst'}
-        audio.export(f, format='mp3', bitrate='128k', tags=metadata, parameters=[
-                        '-minrate', '128k', '-maxrate', '128k'])
+        metadata = {'title': info['title'], 'track': info['trackno'],
+                    'artist': info['artist'],
+                    'album': info['album'], 'year': info['year'],
+                    'genre': 'Gottesdienst'}
+        audio.export(f, format='mp3', bitrate='128k', tags=metadata,
+                     parameters=['-minrate', '128k', '-maxrate', '128k'])
     return filename
 
 
@@ -197,20 +315,23 @@ def read_config():
     PhoneServer=
     Key=
     """ % (tempdir, tempdir))
-    config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'autocut.config'))
+    config.read(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                             'autocut.config'))
     return config
 
 
 def find_input_file(dir):
     # First try if there is a file with the current date in name
     today = datetime.datetime.now()
-    files = glob.glob(os.path.join(dir, '%04d-%02d-%02d*' % (today.year, today.month, today.day)))
+    files = glob.glob(os.path.join(dir, '%04d-%02d-%02d*' % (today.year,
+                                                             today.month,
+                                                             today.day)))
     files.sort()
     if files:
         # if there are multiple files with today's date, take the last one
         return files[-1]
-    # Otherwise sort by name and take the last one (which if the names start with the data is
-    # the newest one)
+    # Otherwise sort by name and take the last one (which if the names
+    # start with the data is the newest one)
     files = glob.glob(os.path.join(dir, '[0-9]*.*'))
     files.sort()
     return files[-1] if files else ''
@@ -231,7 +352,8 @@ def read_services(repo):
     scriptDir = os.path.dirname(os.path.realpath(__file__))
     inputDir = 'Gottesdienste'
     if os.path.exists(inputDir):
-        subprocess.run(['git', 'pull', 'origin'], cwd=os.path.join(scriptDir, inputDir))
+        subprocess.run(['git', 'pull', 'origin'], cwd=os.path.join(scriptDir,
+                                                                   inputDir))
     else:
         subprocess.run(['git', 'clone', repo, inputDir], cwd=scriptDir)
     yml_file = os.path.join(scriptDir, inputDir, 'Gottesdienst.yml')
@@ -264,7 +386,9 @@ def save_announcement_file(info):
     logging.info('Saving announcement file')
     filename = os.path.join(tempfile.gettempdir(), "Announce.txt")
     with open(filename, 'w') as f:
-        f.write('Hallo, guten Tag! Sie hören den %s vom %d. %s %04d.' % (info['announce'], info['date'].day, months[info['date'].month], info['date'].year))
+        f.write('Hallo, guten Tag! Sie hören den %s vom %d. %s %04d.' %
+                (info['announce'], info['date'].day,
+                 months[info['date'].month], info['date'].year))
     return filename
 
 
@@ -273,7 +397,7 @@ def upload_to_website(config, file, year):
     subprocess.run(
         [
             'ncftpput',
-            '-m', # Create remote directory before copying
+            '-m',  # Create remote directory before copying
             '-u', config['Upload']['User'],
             '-p', config['Upload']['Password'],
             config['Upload']['Server'],
@@ -285,12 +409,18 @@ def upload_to_website(config, file, year):
 
 def upload_to_phoneserver(config, file):
     logging.info('Uploading to phone server')
-    subprocess.run(['bash', '-c', '%s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-to-phone.sh'), file.replace('(', '\\(').replace(')', '\\)'), config['Upload']['PhoneServer'])])
+    subprocess.run(['bash', '-c', '%s %s %s' % (os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), 'upload-to-phone.sh'), file.replace(
+            '(', '\\(').replace(')', '\\)'), config['Upload']['PhoneServer'])])
 
 
 def upload_announcement(config, file):
     logging.info('Uploading to announcement')
-    subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(os.path.dirname(os.path.realpath(__file__)), 'upload-announcement.sh'), file.replace('(', '\\(').replace(')', '\\)'), config['Upload']['Key'], config['Upload']['PhoneServer'])])
+    subprocess.run(['bash', '-c', '%s %s %s %s' % (os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        'upload-announcement.sh'), file.replace('(', '\\(').replace(
+            ')', '\\)'), config['Upload']['Key'], config[
+                'Upload']['PhoneServer'])])
 
 
 def cleanup(intermediate, announcement):
@@ -304,7 +434,8 @@ if __name__ == '__main__':
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler(os.path.join(tempfile.gettempdir(), "autocut.log")),
+            logging.FileHandler(os.path.join(tempfile.gettempdir(),
+                                             "autocut.log")),
             logging.StreamHandler()
         ]
     )
@@ -312,9 +443,15 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true', help='debug')
-    parser.add_argument('--no-preconvert', action='store_true', help='don\'t do conversion to mp3 as first step')
-    parser.add_argument('--no-upload', action='store_true', help='don\'t upload to servers')
-    parser.add_argument('--no-intro-detection', action='store_true', help='don\'t try to detect intro. Instead use entire file.')
+    parser.add_argument('--no-preconvert', action='store_true',
+                        help='don\'t do conversion to mp3 as first step')
+    parser.add_argument('--no-upload', action='store_true',
+                        help='don\'t upload to servers')
+    parser.add_argument('--no-intro-detection', action='store_true',
+                        help='don\'t try to detect intro. Instead use '
+                        'entire file.')
+    parser.add_argument('--end-intro', action='store',
+                        help='stop intro detection x minutes')
 
     args = parser.parse_args()
     debug = bool(args.debug)
@@ -336,25 +473,15 @@ if __name__ == '__main__':
         audio_file = convert_video_to_mp3(input_file)
     myAudio = load_audio(audio_file)
 
-    segments = detect_segments(myAudio[:len(myAudio)/2])
-
     info = get_info(services, date)
-    if args.no_intro_detection:
-        introIndex = 0
-    else:
-        introIndex = get_index_of_intro_segment(myAudio, segments)
-        if introIndex < 0:
-            if not args.no_upload:
-                # If we can't find intro we upload the full temp file to the website
-                upload_to_website(config, audio_file, info['year'])
-            input('Press Enter…')
-            exit(1)
+    startMilliseconds = find_start_after_intro(myAudio)
 
-    segments = detect_detailed_segments(audio_file, segments[introIndex][1])
+    segments = detect_detailed_segments(audio_file, startMilliseconds)
 
     resultAudio = normalize_segments(myAudio, segments)
 
-    resultFile = export_result(resultAudio, config['Paths']['OutputPath'], info)
+    resultFile = export_result(resultAudio, config['Paths']['OutputPath'],
+                               info)
     announcement = save_announcement_file(info)
 
     if not args.no_upload:

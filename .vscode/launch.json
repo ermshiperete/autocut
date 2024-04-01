@@ -18,7 +18,7 @@
 			"type": "python",
 			"request": "launch",
 			"program": "${workspaceFolder}/autocut.py",
-			"args": ["--debug", "--no-preconvert", "--no-upload"],
+			"args": ["--debug", "--no-preconvert", "--no-upload", "--end-intro", "20"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		}

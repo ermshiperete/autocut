@@ -3,3 +3,4 @@ env/
 Gottesdienste/
 autocut.config
 last-install.sha1
+__pycache__/
