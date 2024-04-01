@@ -365,13 +365,13 @@ def read_services(repo):
 
 
 def extract_date_from_filename(filename):
-    match = re.search('^(\d+)-(\d+)-(\d+)', os.path.basename(filename))
+    match = re.search('^(\\d+)-(\\d+)-(\\d+)', os.path.basename(filename))
     if match:
         parts = match.groups()
         if not parts or len(parts) < 3:
             return datetime.date.today()
         return datetime.date.fromisoformat(f'{parts[0]}-{parts[1]}-{parts[2]}')
-    match = re.search('^(\d+).(\d+).(\d+)', os.path.basename(filename))
+    match = re.search('^(\\d+)\\.(\\d+)\\.(\\d+)', os.path.basename(filename))
     if match:
         parts = match.groups()
         if not parts or len(parts) < 3:
@@ -467,6 +467,7 @@ if __name__ == '__main__':
         input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
 
     date = extract_date_from_filename(input_file)
+    logging.info(f'Found date {date.year:04}-{date.month:02}-{date.day:02}')
     if args.no_preconvert:
         audio_file = input_file
     else:
