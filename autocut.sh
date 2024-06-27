@@ -16,3 +16,4 @@ if [ ! -f last-install.sha1 ] || [[ "$(cat last-install.sha1)" != "$(git rev-par
     git rev-parse HEAD > last-install.sha1
 fi
 ./autocut.py "$@"
+read -p "Press Enter..."
