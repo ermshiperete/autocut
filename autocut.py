@@ -15,6 +15,7 @@ import re
 import subprocess
 import tempfile
 from time import sleep, time_ns
+import time
 import yaml
 
 
@@ -218,11 +219,7 @@ def find_start_after_intro(audio, silence_len=1000):
         audio, introSegments)
     if end_of_intro_ms >= 0:
         return end_of_intro_ms
-    if not args.no_upload:
-        # If we can't find intro we upload the full temp file to the website
-        upload_to_website(config, audio_file, info['year'])
-    input('Press Enter…')
-    exit(1)
+    return -1
 
 
 def _add_audio(existing, new):
@@ -278,7 +275,8 @@ def get_info(services, date):
             'trackno': '%04d%02d%02d' % (date.year, date.month, date.day),
             'year': '%04d' % date.year,
             'isodate': '%04d-%02d-%02d' % (date.year, date.month, date.day),
-            'date': date
+            'date': date,
+            'start': secure_lookup(service, 'start', default='10:00')
             }
 
 
@@ -429,6 +427,66 @@ def cleanup(intermediate, announcement):
     os.remove(announcement)
 
 
+def get_now():
+    return datetime.datetime.now()
+
+
+def get_start_in_audio(input_file, info):
+    ctime = time.localtime(os.path.getctime(input_file))
+    file_time = datetime.datetime(ctime.tm_year, ctime.tm_mon,
+                                  ctime.tm_mday, ctime.tm_hour,
+                                  ctime.tm_min, ctime.tm_sec)
+    service_start_time = datetime.time.fromisoformat(info['start'])
+    # return 2 minutes before start_time
+    start_time = get_now().replace(
+        hour=service_start_time.hour, minute=service_start_time.minute,
+        second=ctime.tm_sec)
+    early = datetime.timedelta(minutes=2)
+    if file_time + early > start_time:
+        return 0
+    diff = start_time - file_time - early
+    return diff.seconds * 1000
+
+
+def process_audio(input_file, audio_file, services, use_start_time):
+    date = extract_date_from_filename(input_file)
+    logging.info(f'Found date {date.year:04}-{date.month:02}-{date.day:02}')
+    info = get_info(services, date)
+
+    myAudio = load_audio(audio_file)
+
+    if use_start_time:
+        start_in_audio_ms = get_start_in_audio(input_file, info)
+        myAudio = myAudio[start_in_audio_ms:]
+
+    startMilliseconds = find_start_after_intro(myAudio)
+    if startMilliseconds < 0:
+        if use_start_time:
+            # try again from beginning
+            process_audio(input_file, audio_file, services, False)
+        else:
+            if not args.no_upload:
+                # If we can't find intro we upload the full temp file to the website
+                upload_to_website(config, audio_file, info['year'])
+            input('Press Enter…')
+            exit(1)
+
+    segments = detect_detailed_segments(audio_file, startMilliseconds)
+
+    resultAudio = normalize_segments(myAudio, segments)
+
+    resultFile = export_result(resultAudio, config['Paths']['OutputPath'],
+                               info)
+    announcement = save_announcement_file(info)
+
+    if not args.no_upload:
+        upload_to_website(config, resultFile, info['year'])
+        upload_to_phoneserver(config, resultFile)
+        upload_announcement(config, announcement)
+
+    cleanup(audio_file, announcement)
+
+
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
@@ -466,31 +524,12 @@ if __name__ == '__main__':
     if not input_file:
         input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
 
-    date = extract_date_from_filename(input_file)
-    logging.info(f'Found date {date.year:04}-{date.month:02}-{date.day:02}')
     if args.no_preconvert:
         audio_file = input_file
     else:
         audio_file = convert_video_to_mp3(input_file)
-    myAudio = load_audio(audio_file)
 
-    info = get_info(services, date)
-    startMilliseconds = find_start_after_intro(myAudio)
-
-    segments = detect_detailed_segments(audio_file, startMilliseconds)
-
-    resultAudio = normalize_segments(myAudio, segments)
-
-    resultFile = export_result(resultAudio, config['Paths']['OutputPath'],
-                               info)
-    announcement = save_announcement_file(info)
-
-    if not args.no_upload:
-        upload_to_website(config, resultFile, info['year'])
-        upload_to_phoneserver(config, resultFile)
-        upload_announcement(config, announcement)
-
-    cleanup(audio_file, announcement)
+    process_audio(input_file, audio_file, services, True)
 
     logging.info('AUTOCUT FINISHED!')
     input('Press Enter…')
