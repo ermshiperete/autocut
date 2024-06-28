@@ -427,20 +427,21 @@ def cleanup(intermediate, announcement):
     os.remove(announcement)
 
 
-def get_now():
-    return datetime.datetime.now()
+def get_creation_time(input_file):
+    ctime = time.localtime(os.path.getctime(input_file))
+    return datetime.datetime(ctime.tm_year, ctime.tm_mon,
+                             ctime.tm_mday, ctime.tm_hour,
+                             ctime.tm_min, ctime.tm_sec)
 
 
 def get_start_in_audio(input_file, info):
-    ctime = time.localtime(os.path.getctime(input_file))
-    file_time = datetime.datetime(ctime.tm_year, ctime.tm_mon,
-                                  ctime.tm_mday, ctime.tm_hour,
-                                  ctime.tm_min, ctime.tm_sec)
+    file_time = get_creation_time(input_file)
     service_start_time = datetime.time.fromisoformat(info['start'])
+    start_time = file_time.replace(
+        hour=service_start_time.hour,
+        minute=service_start_time.minute,
+        second=0)
     # return 2 minutes before start_time
-    start_time = get_now().replace(
-        hour=service_start_time.hour, minute=service_start_time.minute,
-        second=ctime.tm_sec)
     early = datetime.timedelta(minutes=2)
     if file_time + early > start_time:
         return 0

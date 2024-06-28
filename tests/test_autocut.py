@@ -9,11 +9,11 @@ from unittest import mock
 from autocut import convert_milliseconds_to_readable, extract_date_from_filename, get_start_in_audio
 
 
-mock_time = datetime.time()
+mock_creation_time = datetime.time()
 
 
-def mocked_get_now():
-    return mock_time
+def mocked_get_creation_time(input_file):
+    return mock_creation_time
 
 
 class TestAutocut(unittest.TestCase):
@@ -45,20 +45,21 @@ class TestAutocut(unittest.TestCase):
         [-5, 0],
         [2, 0],
         [3, 60000],
+        [63, 3660000],
     ])
-    @mock.patch('autocut.get_now', side_effect=mocked_get_now)
-    def test_get_start_in_audio(self, start_min, exepcted, mock_obj):
+    @mock.patch('autocut.get_creation_time',
+                side_effect=mocked_get_creation_time)
+    def test_get_start_in_audio(self, start_minute, exepcted, mock_obj):
         # setup
-        global mock_time
-        temp_file = tempfile.TemporaryFile()
-        ctime = time.localtime(os.path.getctime(temp_file.name))
-        mock_time = datetime.datetime(ctime.tm_year, ctime.tm_mon,
-                                      ctime.tm_mday, ctime.tm_hour,
-                                      ctime.tm_min + start_min, ctime.tm_sec)
-        info = {'start': f'{mock_time.hour}:{mock_time.minute}'}
+        start_time = datetime.datetime.now().replace(
+            hour=10, minute=0, second=0)
+        global mock_creation_time
+        mock_creation_time = start_time - \
+            datetime.timedelta(minutes=start_minute)
+        info = {'start': f'{start_time.hour:02d}:{start_time.minute:02d}'}
 
         # execute
-        start = get_start_in_audio(temp_file.name, info)
+        start = get_start_in_audio('foo.mp3', info)
 
         # verify
         self.assertEqual(start, exepcted)
