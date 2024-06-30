@@ -363,19 +363,24 @@ def read_services(repo):
 
 
 def extract_date_from_filename(filename):
+    match = re.search('^(\\d+)-(\\d+)-(\\d+) (\\d+)-(\\d+)-(\\d+)',
+                      os.path.basename(filename))
+    if match:
+        parts = match.groups()
+        if parts and len(parts) == 6:
+            return datetime.datetime.fromisoformat(f'{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}T{int(parts[3]):02d}:{int(parts[4]):02d}:{int(parts[5]):02d}')
     match = re.search('^(\\d+)-(\\d+)-(\\d+)', os.path.basename(filename))
     if match:
         parts = match.groups()
-        if not parts or len(parts) < 3:
-            return datetime.date.today()
-        return datetime.date.fromisoformat(f'{parts[0]}-{parts[1]}-{parts[2]}')
+        if parts and len(parts) == 3:
+            return datetime.datetime.fromisoformat(f'{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}')
     match = re.search('^(\\d+)\\.(\\d+)\\.(\\d+)', os.path.basename(filename))
     if match:
         parts = match.groups()
         if not parts or len(parts) < 3:
             return datetime.date.today()
-        return datetime.date.fromisoformat(f'{parts[2]}-{parts[1]}-{parts[0]}')
-    return datetime.date.today()
+        return datetime.datetime.fromisoformat(f'{int(parts[2]):04d}-{int(parts[1]):02d}-{int(parts[0]):02d}')
+    return datetime.datetime.fromisoformat(datetime.date.today().isoformat())
 
 
 def save_announcement_file(info):
@@ -434,8 +439,7 @@ def get_creation_time(input_file):
                              ctime.tm_min, ctime.tm_sec)
 
 
-def get_start_in_audio(input_file, info):
-    file_time = get_creation_time(input_file)
+def get_start_in_audio(input_file, info, file_time):
     service_start_time = datetime.time.fromisoformat(info['start'])
     start_time = file_time.replace(
         hour=service_start_time.hour,
@@ -457,7 +461,7 @@ def process_audio(input_file, audio_file, services, use_start_time):
     myAudio = load_audio(audio_file)
 
     if use_start_time:
-        start_in_audio_ms = get_start_in_audio(input_file, info)
+        start_in_audio_ms = get_start_in_audio(input_file, info, date)
         logging.info(f'Starting to look for intro after {start_in_audio_ms/1000}ms')
         myAudio = myAudio[start_in_audio_ms:]
 

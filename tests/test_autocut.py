@@ -25,19 +25,20 @@ class TestAutocut(unittest.TestCase):
         self.assertEqual(convert_milliseconds_to_readable(  60000), '00:01:00.0')
         self.assertEqual(convert_milliseconds_to_readable(3600000), '01:00:00.0')
 
-    def test_extract_date_from_filename(self):
-        self.assertEqual(extract_date_from_filename(
-            '2024-03-31_foo.mp3'), datetime.date.fromisoformat('2024-03-31'))
-        self.assertEqual(extract_date_from_filename(
-            '31.03.2024_foo.mp3'), datetime.date.fromisoformat('2024-03-31'))
-        self.assertEqual(extract_date_from_filename(
-            '31.03.2024 foo.mp3'), datetime.date.fromisoformat('2024-03-31'))
-        self.assertEqual(extract_date_from_filename(
-            '03.2024_foo.mp3'), datetime.date.today())
-        self.assertEqual(extract_date_from_filename(
-            'foo.mp3'), datetime.date.today())
-        self.assertEqual(extract_date_from_filename(
-            '20240331_foo.mp3'), datetime.date.today())
+    @parameterized.expand([
+        ['2024-06-30 09-36-16.mkv', '2024-06-30T09:36:16'],
+        ['2024-6-5 9-8-7.mkv', '2024-06-05T09:08:07'],
+        ['2024-06-30 11Foo.mkv', '2024-06-30'],
+        ['2024-03-31_foo.mp3', '2024-03-31'],
+        ['31.03.2024_foo.mp3', '2024-03-31'],
+        ['31.03.2024 foo.mp3', '2024-03-31'],
+        ['03.2024_foo.mp3', datetime.date.today().isoformat()],
+        ['foo.mp3', datetime.date.today().isoformat()],
+        ['20240331_foo.mp3', datetime.date.today().isoformat()]
+    ])
+    def test_extract_date_from_filename(self, filename, date):
+        self.assertEqual(extract_date_from_filename(filename),
+                         datetime.datetime.fromisoformat(date))
 
     @parameterized.expand([
         [0, 0],
@@ -59,7 +60,7 @@ class TestAutocut(unittest.TestCase):
         info = {'start': f'{start_time.hour:02d}:{start_time.minute:02d}'}
 
         # execute
-        start = get_start_in_audio('foo.mp3', info)
+        start = get_start_in_audio('foo.mp3', info, mock_creation_time)
 
         # verify
         self.assertEqual(start, exepcted)
