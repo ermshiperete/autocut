@@ -474,6 +474,7 @@ def process_audio(input_file, audio_file, services, use_start_time):
             if not args.no_upload:
                 # If we can't find intro we upload the full temp file to the website
                 upload_to_website(config, audio_file, info['year'])
+            input('Press Enter...')
             exit(1)
 
     segments = detect_detailed_segments(audio_file, startMilliseconds)
@@ -540,3 +541,4 @@ if __name__ == '__main__':
         logging.warning('Got exception processing audio: %s', e)
 
     logging.info('AUTOCUT FINISHED!')
+    input('Press Enter...')
