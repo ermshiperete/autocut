@@ -516,6 +516,7 @@ if __name__ == '__main__':
                         'entire file.')
     parser.add_argument('--end-intro', action='store',
                         help='stop intro detection x minutes')
+    parser.add_argument('--autostart', action='store_true')
 
     args = parser.parse_args()
     debug = bool(args.debug)
@@ -527,7 +528,25 @@ if __name__ == '__main__':
     services = read_services(config['Paths']['Services'])
 
     input_file = find_input_file(config['Paths']['InputPath'])
-    if not input_file:
+    if input_file:
+        date = extract_date_from_filename(input_file)
+        today = datetime.date.today()
+        if (date.year != today.year or date.month != today.month or \
+                date.day != today.day) and args.autostart:
+            # If automatically started we don't want to process if input_file
+            # is not from today
+            logging.info(
+                'Skipping %s since it is not from today and we were autostarted',
+                input_file)
+            exit(1)
+    else:
+        if args.autostart:
+            # If automatically started we don't want to process if
+            # input_file is not from today
+            logging.info(
+                'Skipping %s since it is not from today and we were autostarted',
+                input_file)
+            exit(1)
         input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
 
     if args.no_preconvert:
