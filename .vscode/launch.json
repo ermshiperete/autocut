@@ -7,7 +7,7 @@
 
 		{
 			"name": "Python: Current File",
-			"type": "python",
+			"type": "debugpy",
 			"request": "launch",
 			"program": "${file}",
 			"console": "integratedTerminal",
@@ -15,10 +15,11 @@
 		},
 		{
 			"name": "Python: autocut",
-			"type": "python",
+			"type": "debugpy",
 			"request": "launch",
 			"program": "${workspaceFolder}/autocut.py",
-			"args": ["--debug", "--no-preconvert", "--no-upload", "--end-intro", "20"],
+			// "args": ["--debug", "--no-preconvert", "--no-upload", "--end-intro", "20"],
+			"args": ["--debug", "--no-preconvert", "--no-intro-detection", "--no-upload"],
 			"console": "integratedTerminal",
 			"justMyCode": true
 		}

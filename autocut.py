@@ -258,9 +258,9 @@ def normalize_segments(audio, segments):
                      convert_milliseconds_to_readable(nextstop),
                      (nextstop - start) / 1000)
         audioseg = audio[start:nextstop]
-        i = j - 1
         normalized = effects.normalize(audioseg)
         resultAudio = _add_audio(resultAudio, normalized)
+        i = j - 1
     return resultAudio
 
 
@@ -462,8 +462,9 @@ def process_audio(input_file, audio_file, services, use_start_time):
 
     if use_start_time:
         start_in_audio_ms = get_start_in_audio(input_file, info, date)
-        logging.info(f'Starting to look for intro after {start_in_audio_ms/1000}ms')
-        myAudio = myAudio[start_in_audio_ms:]
+        if start_in_audio_ms < myAudio.duration_seconds * 1000:
+            logging.info(f'Starting to look for intro after {start_in_audio_ms/1000}s')
+            myAudio = myAudio[start_in_audio_ms:]
 
     startMilliseconds = find_start_after_intro(myAudio)
     if startMilliseconds < 0:
