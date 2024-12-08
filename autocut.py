@@ -260,6 +260,9 @@ def normalize_segments(audio, segments):
         audioseg = audio[start:nextstop]
         normalized = effects.normalize(audioseg)
         resultAudio = _add_audio(resultAudio, normalized)
+        if j >= len(segments) - 1:
+            # last segment
+            break
         i = j - 1
     return resultAudio
 
