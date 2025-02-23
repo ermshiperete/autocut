@@ -18,6 +18,10 @@ from time import sleep, time_ns
 import time
 import yaml
 
+from pydub import AudioSegment, effects, silence
+from inaSpeechSegmenter import Segmenter
+
+
 
 intro_length = 100000
 
@@ -525,9 +529,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     debug = bool(args.debug)
     config = read_config()
-
-    from pydub import AudioSegment, effects, silence
-    from inaSpeechSegmenter import Segmenter
 
     services = read_services(config['Paths']['Services'])
 
