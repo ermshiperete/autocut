@@ -8,7 +8,7 @@ it and then normalizes the rest of the recording.
 ```bash
 sudo apt-add-repository ppa:marin-m/songrec
 sudo apt install songrec python3 python3-pip ncftp lame sox openssh-client wget ffmpeg
-pip install pydub
+./install.sh
 ```
 
 ### Create Shortcut
@@ -16,7 +16,7 @@ pip install pydub
 To create a shortcut on Windows to the script in WSL:
 
 ```bash
-C:\Windows\System32\wsl.exe -d Ubuntu-20.04 -- bash -c /path/to/autocut/autocut.sh
+C:\Windows\System32\wsl.exe -d Ubuntu-24.04 -- bash -c /path/to/autocut/autocut.sh
 ```
 
 ## How it works
@@ -67,8 +67,6 @@ If `announce` is not set `name` will be used. If `name` is not set,
 ### Setup
 
 ```bash
-virtualenv -p python3 env
-source env/bin/activate
 ./install.sh
 ```
 
