@@ -7,6 +7,7 @@
 import argparse
 import configparser
 import datetime
+from ftplib import FTP
 import glob
 import json
 import logging
@@ -20,7 +21,6 @@ import yaml
 
 from pydub import AudioSegment, effects, silence
 from inaSpeechSegmenter import Segmenter
-
 
 
 intro_length = 100000
@@ -433,6 +433,18 @@ def upload_announcement(config, file):
                 'Upload']['PhoneServer'])])
 
 
+def remove_from_website(config, file, year):
+    logging.info('Removing fallback file from website')
+    try:
+        ftp = FTP(config['Upload']['Server'])
+        ftp.login(config['Upload']['User'], config['Upload']['Password'])
+        ftp.cwd(f'/Predigten/{year}/')
+        ftp.delete(file)
+        ftp.quit()
+    except Exception as e:
+        logging.warning('Got exception deleting file from website: %s', e)
+
+
 def cleanup(intermediate, announcement):
     logging.info('Cleanup')
     os.remove(intermediate)
@@ -500,6 +512,9 @@ def process_audio(input_file, audio_file, services, use_start_time):
 
     cleanup(audio_file, announcement)
 
+    if args.fallback_upload:
+        remove_from_website(config, audio_file, datetime.datetime.now().year)
+
 
 if __name__ == '__main__':
     logging.basicConfig(
@@ -525,6 +540,8 @@ if __name__ == '__main__':
     parser.add_argument('--end-intro', action='store',
                         help='stop intro detection x minutes')
     parser.add_argument('--autostart', action='store_true')
+    parser.add_argument('--fallback-upload', action='store_true',
+                        help='upload mp3 to website as backup if program crashes')
 
     args = parser.parse_args()
     debug = bool(args.debug)
@@ -558,6 +575,9 @@ if __name__ == '__main__':
         audio_file = input_file
     else:
         audio_file = convert_video_to_mp3(input_file)
+
+    if args.fallback_upload:
+        upload_to_website(config, audio_file, datetime.datetime.now().year)
 
     try:
         process_audio(input_file, audio_file, services, True)
