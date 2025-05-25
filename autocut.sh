@@ -20,6 +20,6 @@ if [ ! -f last-install.sha1 ] || [[ "$(cat last-install.sha1)" != "$(git rev-par
     ./install.sh
     git rev-parse HEAD > last-install.sha1
 fi
-python3 autocut.py "$@"
+python3 autocut.py "$@" || true
 # shellcheck disable=SC2162
 read -p "Press Enter..."

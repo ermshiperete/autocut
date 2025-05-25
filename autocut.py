@@ -585,4 +585,3 @@ if __name__ == '__main__':
         logging.warning('Got exception processing audio: %s', e)
 
     logging.info('AUTOCUT FINISHED!')
-    input('Press Enter...')
