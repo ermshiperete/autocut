@@ -402,8 +402,8 @@ def save_announcement_file(info):
     return filename
 
 
-def upload_to_website(config, file, year):
-    logging.info('Uploading to website')
+def upload_to_website(config, file, year, msg='Uploading to website'):
+    logging.info(msg)
     subprocess.run(
         [
             'ncftpput',
@@ -576,7 +576,7 @@ if __name__ == '__main__':
         audio_file = convert_video_to_mp3(input_file)
 
     if args.fallback_upload:
-        upload_to_website(config, audio_file, datetime.datetime.now().year)
+        upload_to_website(config, audio_file, datetime.datetime.now().year, 'Uploading fallback')
 
     try:
         process_audio(input_file, audio_file, services, True)
