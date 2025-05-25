@@ -439,7 +439,7 @@ def remove_from_website(config, file, year):
         ftp = FTP(config['Upload']['Server'])
         ftp.login(config['Upload']['User'], config['Upload']['Password'])
         ftp.cwd(f'/Predigten/{year}/')
-        ftp.delete(file)
+        ftp.delete(os.path.basename(file))
         ftp.quit()
     except Exception as e:
         logging.warning('Got exception deleting file from website: %s', e)
