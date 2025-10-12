@@ -22,6 +22,16 @@
 			"args": ["--debug", "--no-preconvert", "--no-intro-detection", "--no-upload"],
 			"console": "integratedTerminal",
 			"justMyCode": true
+		},
+		{
+			"name": "Python: autocut upload-only",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/autocut.py",
+			// "args": ["--debug", "--no-preconvert", "--no-upload", "--end-intro", "20"],
+			"args": ["--debug", "--upload-only", "/tmp/2025-10-12_Gottesdienst_Ev._Kirchengemeinde_Niederdresselndorf.mp3"],
+			"console": "integratedTerminal",
+			"justMyCode": true
 		}
 	]
 }

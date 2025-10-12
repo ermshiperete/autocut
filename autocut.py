@@ -390,11 +390,15 @@ def extract_date_from_filename(filename):
     return datetime.datetime.fromisoformat(datetime.date.today().isoformat())
 
 
+def get_announcement_filename():
+    return os.path.join(tempfile.gettempdir(), "Announce.txt")
+
+
 def save_announcement_file(info):
     months = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
               'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
     logging.info('Saving announcement file')
-    filename = os.path.join(tempfile.gettempdir(), "Announce.txt")
+    filename = get_announcement_filename()
     with open(filename, 'w') as f:
         f.write('Hallo, guten Tag! Sie hören den %s vom %d. %s %04d.' %
                 (info['announce'], info['date'].day,
@@ -445,9 +449,12 @@ def remove_from_website(config, file, year):
         logging.warning('Got exception deleting file from website: %s', e)
 
 
-def cleanup(intermediate, announcement):
-    logging.info('Cleanup')
+def cleanup_intermediate(intermediate):
+    logging.info('Cleanup intermediate')
     os.remove(intermediate)
+
+def cleanup_announcement(announcement):
+    logging.info('Cleanup announcement')
     os.remove(announcement)
 
 
@@ -489,7 +496,8 @@ def process_audio(input_file, audio_file, services, use_start_time):
     if startMilliseconds < 0:
         if use_start_time:
             # try again from beginning
-            process_audio(input_file, audio_file, services, False)
+            (resultFile, announcement, info) = process_audio(input_file, audio_file, services, False)
+            return resultFile, announcement, info
         else:
             if not args.no_upload:
                 # If we can't find intro we upload the full temp file to the website
@@ -504,15 +512,9 @@ def process_audio(input_file, audio_file, services, use_start_time):
                                info)
     announcement = save_announcement_file(info)
 
-    if not args.no_upload:
-        upload_to_website(config, resultFile, info['year'])
-        upload_to_phoneserver(config, resultFile)
-        upload_announcement(config, announcement)
+    cleanup_intermediate(audio_file)
 
-    cleanup(audio_file, announcement)
-
-    if args.fallback_upload:
-        remove_from_website(config, audio_file, datetime.datetime.now().year)
+    return resultFile, announcement, info
 
 
 if __name__ == '__main__':
@@ -541,46 +543,68 @@ if __name__ == '__main__':
     parser.add_argument('--autostart', action='store_true')
     parser.add_argument('--fallback-upload', action='store_true',
                         help='upload mp3 to website as backup if program crashes')
+    parser.add_argument('--upload-only', action='store',
+                        help='upload previously converted files')
 
+    resultFile = None
+    announcementFile = None
+    info = None
     args = parser.parse_args()
     debug = bool(args.debug)
     config = read_config()
 
     services = read_services(config['Paths']['Services'])
 
-    input_file = find_input_file(config['Paths']['InputPath'])
-    if input_file:
-        date = extract_date_from_filename(input_file)
-        today = datetime.date.today()
-        if (date.year != today.year or date.month != today.month or \
-                date.day != today.day) and args.autostart:
-            # If automatically started we don't want to process if input_file
-            # is not from today
-            logging.info(
-                'Skipping %s since it is not from today and we were autostarted',
-                input_file)
-            exit(1)
+    if args.upload_only:
+        resultFile = args.upload_only
+        announcementFile = get_announcement_filename()
+        date = extract_date_from_filename(resultFile)
+        logging.info(f'Found date {date.year:04}-{date.month:02}-{date.day:02}')
+        info = get_info(services, date)
     else:
-        if args.autostart:
-            # If automatically started we don't want to process if
-            # input_file is not from today
-            logging.info(
-                'Skipping %s since it is not from today and we were autostarted',
-                input_file)
-            exit(1)
-        input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
+        input_file = find_input_file(config['Paths']['InputPath'])
+        if input_file:
+            date = extract_date_from_filename(input_file)
+            today = datetime.date.today()
+            if (date.year != today.year or date.month != today.month or \
+                    date.day != today.day) and args.autostart:
+                # If automatically started we don't want to process if input_file
+                # is not from today
+                logging.info(
+                    'Skipping %s since it is not from today and we were autostarted',
+                    input_file)
+                exit(1)
+        else:
+            if args.autostart:
+                # If automatically started we don't want to process if
+                # input_file is not from today
+                logging.info(
+                    'Skipping %s since it is not from today and we were autostarted',
+                    input_file)
+                exit(1)
+            input_file = os.path.join(config['Paths']['InputPath'], 'Godi.mp4')
 
-    if args.no_preconvert:
-        audio_file = input_file
-    else:
-        audio_file = convert_video_to_mp3(input_file)
+        if args.no_preconvert:
+            audio_file = input_file
+        else:
+            audio_file = convert_video_to_mp3(input_file)
 
-    if args.fallback_upload:
-        upload_to_website(config, audio_file, datetime.datetime.now().year, 'Uploading fallback')
+        if args.fallback_upload:
+            upload_to_website(config, audio_file, datetime.datetime.now().year, 'Uploading fallback')
 
-    try:
-        process_audio(input_file, audio_file, services, True)
-    except Exception as e:
-        logging.warning('Got exception processing audio: %s', e)
+        try:
+            (resultFile, announcementFile, info) = process_audio(input_file, audio_file, services, True)
+
+            if args.fallback_upload:
+                remove_from_website(config, audio_file, datetime.datetime.now().year)
+        except Exception as e:
+            logging.warning('Got exception processing audio: %s', e)
+
+    if not args.no_upload:
+        upload_to_website(config, resultFile, info['year'])
+        upload_to_phoneserver(config, resultFile)
+        upload_announcement(config, announcementFile)
+
+    cleanup_announcement(announcementFile)
 
     logging.info('AUTOCUT FINISHED!')
