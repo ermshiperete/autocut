@@ -272,7 +272,7 @@ def normalize_segments(audio, segments):
 
 
 def get_info(services, date):
-    service = secure_lookup(services, date)
+    service = secure_lookup(services, date.date())
     title = secure_lookup(service, 'name', default='Gottesdienst')
     return {'title': title,
             'announce': secure_lookup(service, 'announce', default=title),
@@ -593,7 +593,7 @@ if __name__ == '__main__':
             upload_to_website(config, audio_file, datetime.datetime.now().year, 'Uploading fallback')
 
         try:
-            (resultFile, announcementFile, info) = process_audio(input_file, audio_file, services, True)
+            (resultFile, announcementFile, info) = process_audio(input_file, audio_file, services, not args.no_intro_detection)
 
             if args.fallback_upload:
                 remove_from_website(config, audio_file, datetime.datetime.now().year)
