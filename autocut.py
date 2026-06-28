@@ -465,14 +465,17 @@ def get_creation_time(input_file):
                              ctime.tm_min, ctime.tm_sec)
 
 
-def get_start_in_audio(input_file, info, file_time):
+def get_start_in_audio(input_file, info, file_time, detect_intro):
     service_start_time = datetime.time.fromisoformat(info['start'])
     start_time = file_time.replace(
         hour=service_start_time.hour,
         minute=service_start_time.minute,
         second=0)
-    # return 2 minutes before start_time
-    early = datetime.timedelta(minutes=2)
+    if detect_intro:
+        # return 2 minutes before start_time
+        early = datetime.timedelta(minutes=2)
+    else:
+        early = datetime.timedelta(minutes=0)
     if file_time + early > start_time:
         return 0
     diff = start_time - file_time - early
@@ -537,14 +540,18 @@ if __name__ == '__main__':
                         help='don\'t upload to servers')
     parser.add_argument('--no-intro-detection', action='store_true',
                         help='don\'t try to detect intro. Instead use '
-                        'entire file.')
+                        'entire file (or use <start-time> if '
+                        '--use-start-time is given).')
     parser.add_argument('--end-intro', action='store',
                         help='stop intro detection x minutes')
-    parser.add_argument('--autostart', action='store_true')
+    parser.add_argument('--autostart', action='store_true',
+                        help='only look for input files from the current day')
     parser.add_argument('--fallback-upload', action='store_true',
                         help='upload mp3 to website as backup if program crashes')
     parser.add_argument('--upload-only', action='store',
                         help='upload previously converted files')
+    parser.add_argument('--use-start-time', action='store_true',
+                        help='')
 
     resultFile = None
     announcementFile = None
@@ -593,7 +600,9 @@ if __name__ == '__main__':
             upload_to_website(config, audio_file, datetime.datetime.now().year, 'Uploading fallback')
 
         try:
-            (resultFile, announcementFile, info) = process_audio(input_file, audio_file, services, not args.no_intro_detection)
+            (resultFile, announcementFile, info) = process_audio(
+                input_file, audio_file,
+                services, args.use_start_time or not args.no_intro_detection)
 
             if args.fallback_upload:
                 remove_from_website(config, audio_file, datetime.datetime.now().year)

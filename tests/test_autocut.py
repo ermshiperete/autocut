@@ -41,16 +41,22 @@ class TestAutocut(unittest.TestCase):
                          datetime.datetime.fromisoformat(date))
 
     @parameterized.expand([
-        [0, 0],
-        [5, 180000],
-        [-5, 0],
-        [2, 0],
-        [3, 60000],
-        [63, 3660000],
+        [0, True, 0],        # 0 min
+        [5, True, 180000],   # 3 min
+        [-5, True, 0],       # 0 min
+        [2, True, 0],        # 0 min
+        [3, True, 60000],    # 1 min
+        [63, True, 3660000], # 61 min
+        [0, False, 0],        # 0 min
+        [5, False, 300000],   # 5 min
+        [-5, False, 0],       # 0 min
+        [2, False, 120000],   # 2 min
+        [3, False, 180000],   # 3 min
+        [63, False, 3780000], # 63 min
     ])
     @mock.patch('autocut.get_creation_time',
                 side_effect=mocked_get_creation_time)
-    def test_get_start_in_audio(self, start_minute, exepcted, mock_obj):
+    def test_get_start_in_audio(self, start_minute, detect_intro, exepcted, mock_obj):
         # setup
         start_time = datetime.datetime.now().replace(
             hour=10, minute=0, second=0)
@@ -60,7 +66,7 @@ class TestAutocut(unittest.TestCase):
         info = {'start': f'{start_time.hour:02d}:{start_time.minute:02d}'}
 
         # execute
-        start = get_start_in_audio('foo.mp3', info, mock_creation_time)
+        start = get_start_in_audio('foo.mp3', info, mock_creation_time, detect_intro)
 
         # verify
         self.assertEqual(start, exepcted)

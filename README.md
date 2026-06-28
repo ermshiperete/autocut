@@ -70,7 +70,7 @@ If `announce` is not set `name` will be used. If `name` is not set,
 ### Setup
 
 ```bash
-./install.sh
+./install.sh --devel
 ```
 
 ### Make changes
