@@ -210,10 +210,10 @@ def get_end_of_intro_segment_in_slots(audio, segments):
 
 
 def find_start_after_intro(audio, start_in_audio_ms, silence_len=1000):
-    introSegments = detect_segments(audio[:len(audio)/2], silence_len)
-
     if args.no_intro_detection:
         return start_in_audio_ms if args.use_start_time else 0
+
+    introSegments = detect_segments(audio[:len(audio)/2], silence_len)
     end_of_intro_ms = get_end_of_intro_segment(audio, introSegments)
     if end_of_intro_ms >= 0:
         return end_of_intro_ms
@@ -519,9 +519,8 @@ def process_audio(input_file, audio_file, services, use_start_time):
 
     if use_start_time:
         start_in_audio_ms = get_start_in_audio(input_file, info, date, not args.use_start_time)
-        if start_in_audio_ms < myAudio.duration_seconds * 1000:
-            logging.info(f'Starting to look for intro after {start_in_audio_ms/1000}s')
-            myAudio = myAudio[start_in_audio_ms:]
+    else:
+        start_in_audio_ms = 0
 
     startMilliseconds = find_start_after_intro(myAudio, start_in_audio_ms)
     if startMilliseconds < 0:
