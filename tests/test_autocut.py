@@ -18,12 +18,15 @@ def mocked_get_creation_time(input_file):
 
 class TestAutocut(unittest.TestCase):
 
-    def test_convert_milliseconds(self):
-        self.assertEqual(convert_milliseconds_to_readable(      0), '00:00:00.0')
-        self.assertEqual(convert_milliseconds_to_readable(   1000), '00:00:01.0')
-        self.assertEqual(convert_milliseconds_to_readable(   1300), '00:00:01.3')
-        self.assertEqual(convert_milliseconds_to_readable(  60000), '00:01:00.0')
-        self.assertEqual(convert_milliseconds_to_readable(3600000), '01:00:00.0')
+    @parameterized.expand([
+        [      0, '00:00:00.0'],
+        [   1000, '00:00:01.0'],
+        [   1300, '00:00:01.3'],
+        [  60000, '00:01:00.0'],
+        [3600000, '01:00:00.0'],
+    ])
+    def test_convert_milliseconds(self, ms, expected):
+        self.assertEqual(convert_milliseconds_to_readable(ms), expected)
 
     @parameterized.expand([
         ['2024-06-30 09-36-16.mkv', '2024-06-30T09:36:16'],
