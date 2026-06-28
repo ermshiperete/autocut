@@ -13,10 +13,11 @@ import json
 import logging
 import os
 import re
+import platform
 import subprocess
+from statx import statx
 import tempfile
 from time import sleep, time_ns
-import time
 import yaml
 
 from pydub import AudioSegment, effects, silence
@@ -455,16 +456,45 @@ def cleanup_announcement(announcement):
     os.remove(announcement)
 
 
-def get_creation_time(input_file):
-    ctime = time.localtime(os.path.getctime(input_file))
-    return datetime.datetime(ctime.tm_year, ctime.tm_mon,
-                             ctime.tm_mday, ctime.tm_hour,
-                             ctime.tm_min, ctime.tm_sec)
+def _creation_timestamp(input_file):
+    """
+    Try to get the Unix timestamp that a file was created, falling back to when
+    Try to get the Unix timestamp that a file was created, falling back to when
+    it was last modified if that isn't possible.
+    See http://stackoverflow.com/a/39501288/1709587 for explanation.
+    """
+    if platform.system() == 'Windows':
+        return os.path.getctime(input_file)
+    else:
+        stat = os.stat(input_file)
+        if hasattr(stat, 'st_birthtime'):
+            return stat.st_birthtime
+
+        # We're probably on Linux. Hopefully, we are on a recent enough
+        # version that we can use the statx syscall. (If we are not, btime
+        # below will be `None`.)
+        btime = statx(input_file).btime
+        if btime:
+            return btime
+
+    # If we've made it this far, all our efforts have failed. Fall back to
+    # returning last-modified time as the closest available alternative:
+    return os.path.getmtime(input_file)
 
 
-def get_start_in_audio(input_file, info, file_time, detect_intro):
+def get_creation_time(input_file, start_time):
+    ctime = _creation_timestamp(input_file)
+    creation_time = datetime.datetime.fromtimestamp(ctime)
+    if creation_time > start_time:
+        # File was copied, use mtime instead
+        mtime = os.path.getmtime(input_file)
+        creation_time = datetime.datetime.fromtimestamp(mtime)
+    return creation_time
+
+
+def get_start_in_audio(input_file, info, date, detect_intro):
     service_start_time = datetime.time.fromisoformat(info['start'])
-    start_time = file_time.replace(
+    start_time = date.replace(
         hour=service_start_time.hour,
         minute=service_start_time.minute,
         second=0)
@@ -473,6 +503,7 @@ def get_start_in_audio(input_file, info, file_time, detect_intro):
         early = datetime.timedelta(minutes=2)
     else:
         early = datetime.timedelta(minutes=0)
+    file_time = get_creation_time(input_file, start_time)
     if file_time + early > start_time:
         return 0
     diff = start_time - file_time - early

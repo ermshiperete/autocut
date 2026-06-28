@@ -52,7 +52,7 @@ fi
 
 pip3 install --upgrade numpy==${NUMPY_VERSION}
 pip3 install inaSpeechSegmenter
-pip3 install pydub
+pip3 install pydub pystatx
 pip3 install --upgrade PyYAML${PYAML_VERSION}
 
 if [[ "${1:-}" == "--devel" ]]; then
