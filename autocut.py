@@ -490,7 +490,7 @@ def process_audio(input_file, audio_file, services, use_start_time):
     myAudio = load_audio(audio_file)
 
     if use_start_time:
-        start_in_audio_ms = get_start_in_audio(input_file, info, date)
+        start_in_audio_ms = get_start_in_audio(input_file, info, date, not args.use_start_time)
         if start_in_audio_ms < myAudio.duration_seconds * 1000:
             logging.info(f'Starting to look for intro after {start_in_audio_ms/1000}s')
             myAudio = myAudio[start_in_audio_ms:]
