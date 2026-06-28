@@ -17,6 +17,11 @@ To create a shortcut on Windows to the script in WSL:
 C:\Windows\System32\wsl.exe -d Ubuntu-24.04 -- bash -c /path/to/autocut/autocut.sh
 ```
 
+To automatically run Autocut after closing OBS Studio, copy `tools/obs-studio.bat`
+to `C:\Program Files\obs-studio` and create a link to the batch file on the
+desktop, replacing the existing OBS Studio link. Set the link properties
+to start minimized.
+
 ## How it works
 
 `autocut.py` is the main file that does the autocutting. `autocut.sh` is a little
